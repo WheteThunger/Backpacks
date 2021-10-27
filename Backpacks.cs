@@ -17,7 +17,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "LaserHydra", "3.6.1")]
+    [Info("Backpacks", "LaserHydra", "3.6.2")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     internal class Backpacks : RustPlugin
     {
@@ -818,6 +818,25 @@ namespace Oxide.Plugins
                 ["Fetch Failed"] = "Couldn't fetch \"{0}\" from backpack. Inventory may be full.",
                 ["Toggled Backpack GUI"] = "Toggled backpack GUI button.",
             }, this);
+	    //
+	    lang.RegisterMessages(new Dictionary<string, string>
+            {
+                ["No Permission"] = "Você não tem permissão para usar este comando.",
+                ["May Not Open Backpack In Event"] = "Você não pode abrir uma mochila enquanto participa de um evento!",
+                ["View Backpack Syntax"] = "Syntax: /viewbackpack <name or id>",
+                ["User ID not Found"] = "Não foi possível encontrar jogador com ID '{0}'",
+                ["User Name not Found"] = "Não foi possível encontrar jogador com nome '{0}'",
+                ["Multiple Players Found"] = "Vários jogadores correspondentes encontrados:\n{0}",
+                ["Backpack Over Capacity"] = "Sua mochila estava sobrecarregada. Itens que transbordam foram adicionados ao seu inventário ou descartados.",
+                ["Blacklisted Items Removed"] = "Sua mochila continha itens na lista negra. Eles foram adicionados ao seu inventário ou descartados.",
+                ["Backpack Fetch Syntax"] = "Syntax: backpack.fetch <item short name or id> <amount>",
+                ["Invalid Item"] = "Nome ou ID do item inválido.",
+                ["Invalid Item Amount"] = "O valor do item deve ser um número inteiro maior que 0.",
+                ["Item Not In Backpack"] = "Item \"{0}\" não encontrado na mochila.",
+                ["Items Fetched"] = "Peguei {0} \"{1}\" da mochila.",
+                ["Fetch Failed"] = "Não foi possível buscar \"{0}\" na mochila. O estoque pode estar cheio.",
+                ["Toggled Backpack GUI"] = "Botão alternado da GUI da mochila.",
+            }, this, "pt-BR");
         }
 
         #endregion
