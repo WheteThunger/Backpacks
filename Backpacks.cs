@@ -4106,6 +4106,27 @@ namespace Oxide.Plugins
 
         #region Unity Components
 
+        private class BackpackDestroyWatcher : FacepunchBehaviour
+        {
+            public static BackpackDestroyWatcher AddToEntity(StorageContainer container, ulong ownerId)
+            {
+                var component = container.gameObject.AddComponent<BackpackDestroyWatcher>();
+                component._ownerId = ownerId;
+                return component;
+            }
+
+            public bool IsDestroyed;
+            private ulong _ownerId;
+
+            private void OnDestroy()
+            {
+                if (!IsDestroyed)
+                {
+                    LogError($"Unexpected destruction of backpack container for player: {_ownerId}. This is not supposed to happen. Items might have been lost.");
+                }
+            }
+        }
+
         private class NoRagdollCollision : FacepunchBehaviour
         {
             private Collider _collider;
@@ -5309,6 +5330,7 @@ namespace Oxide.Plugins
             private bool _canRetrieve;
             private DynamicConfigFile _dataFile;
             private StorageContainer _storageContainer;
+            private BackpackDestroyWatcher _backpackDestroyWatcher;
             private BasePlayer _owner;
             private ContainerAdapterCollection _containerAdapters;
             private readonly List<BasePlayer> _looters = new List<BasePlayer>();
@@ -5553,6 +5575,7 @@ namespace Oxide.Plugins
                 _canRetrieve = false;
                 _dataFile = null;
                 _storageContainer = null;
+                _backpackDestroyWatcher = null;
                 _owner = null;
                 _containerAdapters?.ResetPooledItemsAndClear();
                 _looters.Clear();
@@ -6253,6 +6276,8 @@ namespace Oxide.Plugins
 
                 if (_storageContainer != null && !_storageContainer.IsDestroyed)
                 {
+                    _backpackDestroyWatcher.IsDestroyed = true;
+
                     // Note: The ItemContainer will already be Kill()'d by this point, but that's OK.
                     _storageContainer.Kill();
                 }
@@ -6522,6 +6547,7 @@ namespace Oxide.Plugins
                 if ((object)_storageContainer == null || _storageContainer.IsDestroyed)
                 {
                     _storageContainer = SpawnStorageContainer(0);
+                    _backpackDestroyWatcher = BackpackDestroyWatcher.AddToEntity(_storageContainer, OwnerId);
                     if ((object)_storageContainer == null)
                         return null;
                 }
