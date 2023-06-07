@@ -306,6 +306,23 @@ namespace Oxide.Plugins
             }
         }
 
+        private object OnEntityKill(BoxStorage boxStorage)
+        {
+            var inventory = boxStorage?.inventory;
+            if (inventory == null)
+                return null;
+
+            Backpack backpack;
+            int pageIndex;
+            if (_backpackManager.IsBackpack(inventory, out backpack, out pageIndex) && !backpack.IsDestroyed)
+            {
+                LogWarning($"Prevented unexpected destruction of backpack container for player: {backpack.OwnerIdString}");
+                return ObjectCache.Get(false);
+            }
+
+            return null;
+        }
+
         private void OnGroupPermissionGranted(string groupName, string perm)
         {
             if (!perm.StartsWith("backpacks"))
@@ -5341,6 +5358,7 @@ namespace Oxide.Plugins
 
             public bool HasLooters => _looters.Count > 0;
             public bool IsGathering => (object)_inventoryWatcher != null;
+            public bool IsDestroyed => _backpackDestroyWatcher?.IsDestroyed ?? true;
             private Configuration _config => Plugin._config;
             private BackpackManager _backpackManager => Plugin._backpackManager;
             private SubscriberManager _subscriberManager => Plugin._subscriberManager;
