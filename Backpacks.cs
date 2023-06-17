@@ -3945,6 +3945,10 @@ namespace Oxide.Plugins
                     // Kill the backpack to free up space, if no admins are viewing it and its owner is disconnected.
                     if (!keepInUseBackpacks || (!backpack.HasLooters && BasePlayer.FindByID(backpack.OwnerId) == null))
                     {
+                        if (async)
+                        {
+                            LogWarning($"Cleaning up backpack for disconnected player {backpack.OwnerIdString}");
+                        }
                         backpack.Kill();
                         _cachedBackpacks.Remove(backpack.OwnerId);
                         _backpackPathCache.Remove(backpack.OwnerId);
