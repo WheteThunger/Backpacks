@@ -323,6 +323,20 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private void OnEntityDeath(BoxStorage boxStorage)
+        {
+            var inventory = boxStorage?.inventory;
+            if (inventory == null)
+                return;
+
+            Backpack backpack;
+            int pageIndex;
+            if (_backpackManager.IsBackpack(inventory, out backpack, out pageIndex) && !backpack.IsDestroyed)
+            {
+                LogWarning($"Detected unexpected death of backpack container for player: {backpack.OwnerIdString}");
+            }
+        }
+
         private void OnGroupPermissionGranted(string groupName, string perm)
         {
             if (!perm.StartsWith("backpacks"))
