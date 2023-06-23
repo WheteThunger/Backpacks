@@ -323,7 +323,7 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void OnEntityDeath(BoxStorage boxStorage)
+        private void OnEntityDeath(BoxStorage boxStorage, HitInfo info)
         {
             var inventory = boxStorage?.inventory;
             if (inventory == null)
@@ -333,7 +333,8 @@ namespace Oxide.Plugins
             int pageIndex;
             if (_backpackManager.IsBackpack(inventory, out backpack, out pageIndex) && !backpack.IsDestroyed)
             {
-                LogWarning($"Detected unexpected death of backpack container for player: {backpack.OwnerIdString}");
+                var hitInfoDetails = info != null ? $"Damage: {info.damageTypes.Total()}, Majority type: {info.damageTypes.GetMajorityDamageType()}" : "No HitInfo";
+                LogWarning($"Detected unexpected death of backpack container for player: {backpack.OwnerIdString}. {hitInfoDetails}");
             }
         }
 
