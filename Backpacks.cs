@@ -338,6 +338,40 @@ namespace Oxide.Plugins
             }
         }
 
+        private object OnEntityGroundMissing(BoxStorage boxStorage)
+        {
+            var inventory = boxStorage?.inventory;
+            if (inventory == null)
+                return null;
+
+            Backpack backpack;
+            int pageIndex;
+            if (_backpackManager.IsBackpack(inventory, out backpack, out pageIndex) && !backpack.IsDestroyed)
+            {
+                var logMessage = $"Detected ground missing for backpack container for player: {backpack.OwnerIdString}. Blocking event to prevent item loss.";
+
+                var destroyOnGroundMissing = boxStorage.gameObject.GetComponent<DestroyOnGroundMissing>();
+                if (destroyOnGroundMissing != null)
+                {
+                    logMessage += "\nFound DestroyOnGroundMissing component.";
+                }
+
+                var groundWatch = boxStorage.gameObject.GetComponent<GroundWatch>();
+                if (groundWatch != null)
+                {
+                    var whiteListInfo = groundWatch.whitelist?.Length > 0
+                        ? string.Join(", ", groundWatch.whitelist.Select(entity => entity.ShortPrefabName))
+                        : "N/A";
+                    logMessage += $"\nFound GroundWatch component. Position: {groundWatch.groundPosition}. Layers: {(int)groundWatch.layers}. Radius: {groundWatch.radius}. Whitelist: {whiteListInfo}.";
+                }
+
+                LogWarning(logMessage);
+                return ObjectCache.Get(false);
+            }
+
+            return null;
+        }
+
         private void OnGroupPermissionGranted(string groupName, string perm)
         {
             if (!perm.StartsWith("backpacks"))
