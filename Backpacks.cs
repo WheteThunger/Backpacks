@@ -348,7 +348,13 @@ namespace Oxide.Plugins
             int pageIndex;
             if (_backpackManager.IsBackpack(inventory, out backpack, out pageIndex) && !backpack.IsDestroyed)
             {
-                var logMessage = $"Detected ground missing for backpack container for player: {backpack.OwnerIdString}. Blocking event to prevent item loss.";
+                var logMessage = $"Detected ground missing for backpack container for player: {backpack.OwnerIdString}, page {pageIndex}. Blocking event to prevent item loss.";
+
+                var parent = boxStorage.GetParentEntity();
+                if (parent != null)
+                {
+                    logMessage += $"\nBackpack storage has a parent: {parent.PrefabName}";
+                }
 
                 var destroyOnGroundMissing = boxStorage.gameObject.GetComponent<DestroyOnGroundMissing>();
                 if (destroyOnGroundMissing != null)
@@ -4233,6 +4239,12 @@ namespace Oxide.Plugins
                 _plugin.TrackStart();
                 _backpack.OnClosed(looter);
                 ExposedHooks.OnBackpackClosed(looter, _backpack.OwnerId, looter.inventory.loot.containers.FirstOrDefault());
+                var groundWatch = GetComponent<GroundWatch>();
+                if (groundWatch != null)
+                {
+                    LogWarning($"Detected GroundWatch while closing backpack container for player {_backpack.OwnerIdString}. Not sure how it got here. Destroying it.");
+                    DestroyImmediate(groundWatch);
+                }
                 _plugin.TrackEnd();
             }
         }
@@ -6793,8 +6805,31 @@ namespace Oxide.Plugins
 
                 containerEntity.SetFlag(BaseEntity.Flags.Disabled, true);
 
+                var gameObject = containerEntity.gameObject;
+
+                var groundWatchComponents = gameObject.GetComponents<GroundWatch>();
+                if (groundWatchComponents != null)
+                {
+                    if (groundWatchComponents.Length != 1)
+                    {
+                        var logMessage = $"Backpack storage has {groundWatchComponents.Length} GroundWatch components before spawn, but expected 1";
+
+                        var prefabGroundWatchComponents = GameManager.server.FindPrefab(CoffinPrefab)?.GetComponents<GroundWatch>();
+                        if (prefabGroundWatchComponents?.Length > 1)
+                        {
+                            logMessage += $"Prefab template has {prefabGroundWatchComponents.Length} GroundWatch components, but expected 1";
+                        }
+
+                        LogWarning(logMessage);
+                    }
+
+                    foreach (var groundWatch in groundWatchComponents)
+                    {
+                        UnityEngine.Object.DestroyImmediate(groundWatch);
+                    }
+                }
+
                 UnityEngine.Object.DestroyImmediate(containerEntity.GetComponent<DestroyOnGroundMissing>());
-                UnityEngine.Object.DestroyImmediate(containerEntity.GetComponent<GroundWatch>());
 
                 foreach (var collider in containerEntity.GetComponentsInChildren<Collider>())
                     UnityEngine.Object.DestroyImmediate(collider);
@@ -6811,6 +6846,29 @@ namespace Oxide.Plugins
 
                 containerEntity.EnableSaving(false);
                 containerEntity.Spawn();
+
+                groundWatchComponents = gameObject.GetComponents<GroundWatch>();
+                if (groundWatchComponents?.Length > 0)
+                {
+                    var logMessage = $"Backpack storage has {groundWatchComponents.Length} GroundWatch components after spawn, but expected 0";
+
+                    var storageContainerComponents = gameObject.GetComponents<StorageContainer>();
+                    if (storageContainerComponents.Length != 1)
+                    {
+                        logMessage += $"\nThe GameObject has {storageContainerComponents.Length} StorageContainer components, but expected 1";
+                    }
+                    else if (storageContainerComponents[0] != containerEntity)
+                    {
+                        logMessage += "\nThe GameObject unexpectedly has a new StorageContainer component.";
+                    }
+
+                    LogWarning(logMessage);
+
+                    foreach (var groundWatch in groundWatchComponents)
+                    {
+                        UnityEngine.Object.DestroyImmediate(groundWatch);
+                    }
+                }
 
                 // Must change the network group after spawning,
                 // or else vanilla UpdateNetworkGroup will switch it to a positional network group.
