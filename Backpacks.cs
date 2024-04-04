@@ -2477,7 +2477,6 @@ namespace Oxide.Plugins
                     write.PacketID(Message.Type.RPCMessage);
                     write.EntityID(entity.net.ID);
                     write.UInt32(StringPool.Get(funcName));
-                    write.UInt64(0);
                     return write;
                 }
                 return null;
