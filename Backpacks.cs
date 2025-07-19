@@ -5900,19 +5900,23 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
-                if (_player.inventory.containerMain != null)
+                var inventory = _player.inventory;
+                if (inventory is not null)
                 {
-                    _player.inventory.containerMain.onItemAddedRemoved -= _onItemAddedRemoved;
-                }
+                    if (inventory.containerMain != null)
+                    {
+                        inventory.containerMain.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
 
-                if (_player.inventory.containerBelt != null)
-                {
-                    _player.inventory.containerBelt.onItemAddedRemoved -= _onItemAddedRemoved;
-                }
+                    if (inventory.containerBelt != null)
+                    {
+                        inventory.containerBelt.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
 
-                if (_player.inventory.containerWear != null)
-                {
-                    _player.inventory.containerWear.onItemAddedRemoved -= _onItemAddedRemoved;
+                    if (inventory.containerWear != null)
+                    {
+                        inventory.containerWear.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
                 }
 
                 _backpack.HandleGatheringStopped();
