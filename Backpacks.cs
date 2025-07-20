@@ -1280,6 +1280,12 @@ namespace Oxide.Plugins
             if (!VerifyTargetPlayer(player, args[0], out var targetPlayerId, out var targetPlayerIdString))
                 return;
 
+            if (!permission.UserHasPermission(targetPlayerIdString, UsagePermission))
+            {
+                player.Reply($"Player {targetPlayerIdString} is missing the '{UsagePermission}' permission.");
+                return;
+            }
+
             var matchingPermissionsForDebug = new List<(string, int, int)>();
             var capacityInfo = _capacityManager.GetCapacityInfoForDebug(targetPlayerId, targetPlayerIdString, matchingPermissionsForDebug);
 
