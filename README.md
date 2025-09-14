@@ -48,6 +48,8 @@ Alternatively, instead of enabling the GUI button in this plugin, consider using
 - `viewbackpack <name or steam id>` -- Opens another player's backpack (requires `backpacks.admin` permission)
 - `backpack.addsize <name or steam id> <amount>` -- Attempts to change the size of the specified player's backpack by the specified amount, without going outside the bounds of the player's size profile. This can be used to decrease capacity by providing a negative number. Requires the experimental dynamic size feature to be enabled in the config.
 - `backpack.setsize <name or steam id> <amount>` -- Attempts to set the size of the player's backpack to the specified amount, without going outside the bounds of the player's size profile. Requires the experimental dynamic size feature to be enabled in the config.
+- `backpack.debug.size <name or steam id>` -- Prints diagnostic information about the specified player's backpack size. Use this command to debug why a player's backpack isn't the expected size. Note: This command always outputs English so that it can be shared easily with the developer.
+- `backpack.debug.gather <name or steam id>` -- Prints diagnostic information about the gather mode feature of the specified player's backpack. Use this command to debug why gather mode isn't working for a player's backpack. Note: This command always outputs English so that it can be shared easily with the developer.
 
 ## Server commands
 
