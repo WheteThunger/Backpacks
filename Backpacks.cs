@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.16.0")]
+    [Info("Backpacks", "WhiteThunder", "3.16.1")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     internal class Backpacks : CovalencePlugin
     {
@@ -5858,7 +5858,7 @@ namespace Oxide.Plugins
                     _pauseGatherModeUntilFrame = 0;
                 }
 
-                if (!_player.inventory.CanMoveItemsFrom(_player, item))
+                if (!_player.inventory.CanMoveItemsFrom(_player, item).allowed)
                 {
                     Stats.GatherFailed_NotAllowedToMoveItems++;
                     return;
