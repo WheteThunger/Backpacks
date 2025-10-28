@@ -38,12 +38,7 @@ Alternatively, instead of enabling the GUI button in this plugin, consider using
 
 ## Commands
 
-- `backpack` / `backpack.open` -- Opens your own backpack. Requires the `backpacks.use` permission. If the backpack is already open, this will advance to the next page, or will close the player inventory if there are no more pages.
-- `backpack.fetch <item short name or id> <amount>` -- Fetches an item from your backpack.
-- `backpackgui` -- Toggles whether you can see the backpack GUI button.
-- `backpack.setgathermode <All|Existing|Off> <optional page number>` -- Sets gather mode for the specified backpack page. If the page number is not specified, this applies to the first page. This command is useful for quickly changing gather mode via a key bind without opening your backpack. Note: If you want to consistently receive feedback for this command via chat instead of via console, you should bind it like `bind <key> chat.say "/backpack.setgathermode All"` instead of `bind <key> backpack.setgathermode All`.
-
-## Admin commands
+### Admin commands
 
 - `viewbackpack <name or steam id>` -- Opens another player's backpack (requires `backpacks.admin` permission)
 - `backpack.addsize <name or steam id> <amount>` -- Attempts to change the size of the specified player's backpack by the specified amount, without going outside the bounds of the player's size profile. This can be used to decrease capacity by providing a negative number. Requires the experimental dynamic size feature to be enabled in the config.
@@ -51,15 +46,31 @@ Alternatively, instead of enabling the GUI button in this plugin, consider using
 - `backpack.debug.size <name or steam id>` -- Prints diagnostic information about the specified player's backpack size. Use this command to debug why a player's backpack isn't the expected size. Note: This command always outputs English so that it can be shared easily with the developer.
 - `backpack.debug.gather <name or steam id>` -- Prints diagnostic information about the gather mode feature of the specified player's backpack. Use this command to debug why gather mode isn't working for a player's backpack. Note: This command always outputs English so that it can be shared easily with the developer.
 
-## Server commands
+### Player commands
+
+- `backpack` / `backpack.open` -- Opens your own backpack. Requires the `backpacks.use` permission. If the backpack is already open, this will advance to the next page, or will close the player inventory if there are no more pages.
+- `backpack.fetch <item short name or id> <amount>` -- Fetches an item from your backpack.
+- `backpackgui` -- Toggles whether you can see the backpack GUI button.
+- `backpack.setgathermode <All|Existing|Off> <optional page number>` -- Sets gather mode for the specified backpack page. If the page number is not specified, this applies to the first page. This command is useful for quickly changing gather mode via a key bind without opening your backpack. Note: If you want to consistently receive feedback for this command via chat instead of via console, you should bind it like `bind <key> chat.say "/backpack.setgathermode All"` instead of `bind <key> backpack.setgathermode All`.
+
+### Server commands
 
 - `backpack.erase <steam id>` -- Forcibly erases **all** the contents of a specific player's backpack, even if they have `backpack.keeponwipe.*` permissions that would normally exempt them.
 
 ## Permissions
 
+### Admin permissions
+
+- `backpacks.admin` -- Allows using all admin commands, and allows editing other players' backpacks.
+- `backpacks.admin.view` -- Allows using the `viewbackpack` command to view other players' backpacks, without necessarily providing access to edit them.
+- `backpacks.admin.edit` -- Allows using the `viewbackpack` command to edit other players' backpacks.
+- `backpacks.admin.resize` -- Allows using the `backpack.addsize` and `backpack.setsize` commands.
+- `backpacks.admin.debug` -- Allows using the `backpack.debug.size` and `backpack.debug.gather` commands.
+- `backpacks.admin.protected` -- Protects your backpack from being viewed or edited by other administrators via the `viewbackpack` command.
+
+### Player permissions
+
 - `backpacks.use` -- Required to open your own backpack.
-- `backpacks.admin` -- Required to use the `viewbackpack`, `backpack.addsize` and `backpack.setsize` commands.
-- `backpacks.admin.protected` -- Protects your backpack from being viewed by other administrators via the `viewbackpack` command.
 - `backpacks.gui` -- Required to see the GUI button.
 - `backpacks.fetch` -- Required to use the `backpack.fetch` command.
 - `backpacks.keepondeath` -- Exempts you from having your backpack erased or dropped on death.
@@ -69,7 +80,7 @@ Alternatively, instead of enabling the GUI button in this plugin, consider using
 - `backpacks.retrieve` -- Allows you to enable retrieve mode per backpack page. When retrieve mode is enabled, you can build, craft and more using items from your designated backpack pages. Requires the [Item Retriever](https://umod.org/plugins/item-retriever) plugin.
   - **Note**: When you disconnect from the server and reconnect some time later, retrieve mode will not be activated until you open your backpack at least once. Additionally, reloading weapon ammo, switching weapon ammo, purchasing items from vending machines, and purchasing vehicles from NPC vendors will not be able to pull items from pages until you access those specific pages at least once after (re)connecting to the server.
 
-### Size permissions
+#### Size permissions
 
 If you want to grant specific players or groups more backpack capacity than the default (`Backpack size` -> `Default size`), then you may do so via permissions. Each number present in the `Backpack size` -> `Permission sizes` config option will cause the plugin to generate a permission of the format `backpacks.size.<number>`, which assigns the corresponding players or groups that much capacity. For example, `backpacks.size.18` would assign 18 slots of capacity (3 rows).
 
