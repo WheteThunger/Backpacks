@@ -515,6 +515,7 @@ namespace Oxide.Plugins
                     [nameof(TakeBackpackItems)] = new Func<ulong, Dictionary<string, object>, int, List<Item>, int>(TakeBackpackItems),
                     [nameof(MutateBackpackItems)] = new Func<ulong, Dictionary<string, object>, Dictionary<string, object>, int>(MutateBackpackItems),
                     [nameof(TryDepositBackpackItem)] = new Func<ulong, Item, bool>(TryDepositBackpackItem),
+                    [nameof(PauseBackpackGatherMode)] = new Action<ulong, float>(PauseBackpackGatherMode),
                     [nameof(WriteBackpackContentsFromJson)] = new Action<ulong, string>(WriteBackpackContentsFromJson),
                     [nameof(ReadBackpackContentsAsJson)] = new Func<ulong, string>(ReadBackpackContentsAsJson),
                 };
@@ -674,6 +675,11 @@ namespace Oxide.Plugins
             public bool TryDepositBackpackItem(ulong ownerId, Item item)
             {
                 return _backpackManager.GetBackpack(ownerId).TryDepositItem(item);
+            }
+
+            public void PauseBackpackGatherMode(ulong ownerId, float duration)
+            {
+                _backpackManager.GetBackpackIfExists(ownerId)?.PauseGatherMode(duration);
             }
 
             public void WriteBackpackContentsFromJson(ulong ownerId, string json)
@@ -909,6 +915,17 @@ namespace Oxide.Plugins
         public object API_TryDepositBackpackItem(EncryptedValue<ulong> ownerId, Item item)
         {
             return ObjectCache.Get(_api.TryDepositBackpackItem(ownerId, item));
+        }
+
+        [HookMethod(nameof(API_PauseBackpackGatherMode))]
+        public void API_PauseBackpackGatherMode(ulong ownerId, float duration)
+        {
+            _api.PauseBackpackGatherMode(ownerId, duration);
+        }
+        [HookMethod(nameof(API_PauseBackpackGatherMode))]
+        public void API_PauseBackpackGatherMode(EncryptedValue<ulong> ownerId, float duration)
+        {
+            _api.PauseBackpackGatherMode(ownerId, duration);
         }
 
         [HookMethod(nameof(API_WriteBackpackContentsFromJson))]
@@ -1372,7 +1389,9 @@ namespace Oxide.Plugins
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_GatherPaused)).Append(": ").Append(watcher.Stats.GatherFailed_GatherPaused).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_NotAllowedToMoveItems)).Append(": ").Append(watcher.Stats.GatherFailed_NotAllowedToMoveItems).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_FoundMatchingStackInInventory)).Append(": ").Append(watcher.Stats.GatherFailed_FoundMatchingStackInInventory).AppendLine();
-                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem)).Append(": ").Append(watcher.Stats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BackpackOverflowing)).Append(": ").Append(watcher.Stats.GatherFailed_BackpackOverflowing).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_ItemNotAllowed)).Append(": ").Append(watcher.Stats.GatherFailed_ItemNotAllowed).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BlockedByHook)).Append(": ").Append(watcher.Stats.GatherFailed_BlockedByHook).AppendLine();
                 }
             }
 
@@ -5749,7 +5768,9 @@ namespace Oxide.Plugins
             public int GatherFailed_GatherPaused;
             public int GatherFailed_NotAllowedToMoveItems;
             public int GatherFailed_FoundMatchingStackInInventory;
-            public int GatherFailed_BackpackRejectedOrDidNotCareAboutItem;
+            public int GatherFailed_BackpackOverflowing;
+            public int GatherFailed_ItemNotAllowed;
+            public int GatherFailed_BlockedByHook;
         }
 
         private class InventoryWatcher : FacepunchBehaviour
@@ -5777,7 +5798,7 @@ namespace Oxide.Plugins
 
             public GatherModeStats Stats;
             private Action<Item, bool> _onItemAddedRemoved;
-            private int _pauseGatherModeUntilFrame;
+            private Item _itemBeingGathered;
 
             public void DestroyImmediate() => DestroyImmediate(this);
 
@@ -5812,7 +5833,14 @@ namespace Oxide.Plugins
             {
                 if (!wasAdded)
                 {
-                    _pauseGatherModeUntilFrame = Time.frameCount + 1;
+                    // Pause gather mode when an item is removed from the player's inventory, except when the item was
+                    // just gathered. One thing this solves is it prevents an item from being gathered when moved
+                    // between inventory containers.
+                    if (item != _itemBeingGathered)
+                    {
+                        _backpack.PauseGatherModeForOneFrame();
+                    }
+
                     return;
                 }
 
@@ -5847,17 +5875,15 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                if (_pauseGatherModeUntilFrame != 0)
+                // Check whether gather mode is paused early in the process as a performance optimization.
+                if (_backpack.IsGatherModePaused())
                 {
-                    if (_pauseGatherModeUntilFrame > Time.frameCount)
-                    {
-                        Stats.GatherFailed_GatherPaused++;
-                        return;
-                    }
-
-                    _pauseGatherModeUntilFrame = 0;
+                    Stats.GatherFailed_GatherPaused++;
+                    return;
                 }
 
+                // Check whether the player can move items according to Rust rules.
+                // For example, this will prevent gathering items while the player is restrained with handcuffs.
                 if (!_player.inventory.CanMoveItemsFrom(_player, item).allowed)
                 {
                     Stats.GatherFailed_NotAllowedToMoveItems++;
@@ -5872,21 +5898,15 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                var originalPauseGatherModeUntilFrame = _pauseGatherModeUntilFrame;
-                if (_backpack.TryGatherItem(item))
+                // Record the item being gathered so that we can skip pausing gather mode when it is removed.
+                _itemBeingGathered = item;
+
+                if (_backpack.TryGatherItem(item, ref Stats))
                 {
                     Stats.GatherSucceeded++;
+                }
 
-                    if (originalPauseGatherModeUntilFrame != _pauseGatherModeUntilFrame)
-                    {
-                        // Don't pause gather mode due to gathering an item.
-                        _pauseGatherModeUntilFrame = 0;
-                    }
-                }
-                else
-                {
-                    Stats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem++;
-                }
+                _itemBeingGathered = null;
             }
 
             private bool HasMatchingItem(List<Item> itemList, Item item, ref ItemQuery itemQuery, int maxSlots)
@@ -6085,6 +6105,7 @@ namespace Oxide.Plugins
             private readonly List<BasePlayer> _looters = new();
             private readonly List<BasePlayer> _uiViewers = new();
             private InventoryWatcher _inventoryWatcher;
+            private float _pauseGatherModeUntilFrame;
             private float _pauseGatherModeUntilTime;
             private int _checkedAccessOnFrame;
 
@@ -6438,15 +6459,42 @@ namespace Oxide.Plugins
                 _inventoryWatcher = null;
             }
 
+            public void PauseGatherModeForOneFrame()
+            {
+                _pauseGatherModeUntilFrame = Time.frameCount + 1;
+            }
+
             public void PauseGatherMode(float durationSeconds)
             {
                 if (!IsGathering)
                     return;
 
+                PauseGatherModeForOneFrame();
                 _pauseGatherModeUntilTime = Time.time + durationSeconds;
             }
 
-            public bool TryGatherItem(Item item)
+            public bool IsGatherModePaused()
+            {
+                if (_pauseGatherModeUntilFrame != 0)
+                {
+                    if (_pauseGatherModeUntilFrame > Time.frameCount)
+                        return true;
+
+                    _pauseGatherModeUntilFrame = 0;
+                }
+
+                if (_pauseGatherModeUntilTime != 0)
+                {
+                    if (_pauseGatherModeUntilTime > Time.time)
+                        return true;
+
+                    _pauseGatherModeUntilTime = 0;
+                }
+
+                return false;
+            }
+
+            public bool TryGatherItem(Item item, ref GatherModeStats stats)
             {
                 if (!CanGather)
                 {
@@ -6458,22 +6506,23 @@ namespace Oxide.Plugins
 
                 // When overflowing, don't allow items to be added.
                 if (ActualCapacity > AllowedCapacity)
-                    return false;
-
-                if (_pauseGatherModeUntilTime != 0)
                 {
-                    if (_pauseGatherModeUntilTime > Time.time)
-                        return false;
-
-                    _pauseGatherModeUntilTime = 0;
+                    stats.GatherFailed_BackpackOverflowing++;
+                    return false;
                 }
 
                 // Optimization: Don't search pages for a matching item it's not allowed.
                 if (_config.ItemRestrictions.Enabled && !RestrictionRuleset.AllowsItem(item))
+                {
+                    stats.GatherFailed_ItemNotAllowed++;
                     return false;
+                }
 
                 if (!CanAccess)
+                {
+                    stats.GatherFailed_BlockedByHook++;
                     return false;
+                }
 
                 var itemQuery = ItemQuery.FromItem(item);
                 var anyPagesWithGatherAll = false;
@@ -7017,14 +7066,12 @@ namespace Oxide.Plugins
 
                 if (amountTaken > 0)
                 {
-                    PauseGatherMode(1f);
+                    PauseGatherModeForOneFrame();
 
                     foreach (var item in collect)
                     {
                         player.GiveItem(item);
                     }
-
-                    _pauseGatherModeUntilTime = 0;
                 }
 
                 return amountTaken;
@@ -7590,6 +7637,7 @@ namespace Oxide.Plugins
                     return;
 
                 _inventoryWatcher.DestroyImmediate();
+                _pauseGatherModeUntilFrame = 0;
                 _pauseGatherModeUntilTime = 0;
                 _subscriberManager.BroadcastGatherChanged(this, false);
             }

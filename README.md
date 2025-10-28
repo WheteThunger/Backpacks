@@ -623,6 +623,16 @@ Erases the contents of a specific player's backpack.
 
 Note: This cannot be blocked by the `CanEraseBackpack` hook.
 
+### API_PauseBackpackGatherMode
+
+```csharp
+void API_PauseBackpackGatherMode(ulong backpackOwnerID, float durationSeconds = 0f)
+```
+
+Pauses gather mode for the specified player's backpack for the specified duration (in seconds). While paused, items added to the player inventory will not be gathered into the backpack. This is useful when plugins want to add items to the player inventory without and don't want those items to be moved to the backpack.
+
+Note: Supplying `0` (default) will pause gather mode only until the next frame. In most cases, this is what other plugins should use as bulk item movements are typically completed in a single frame via a series of synchronous calls.
+
 ### API_GetBackpackOwnerId
 
 ```csharp
