@@ -29,7 +29,7 @@ namespace Oxide.Plugins
 {
     [Info("Backpacks", "WhiteThunder", "3.15.5")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
-    internal class Backpacks : CovalencePlugin
+    public class Backpacks : CovalencePlugin
     {
         #region Fields
 
@@ -73,7 +73,7 @@ namespace Oxide.Plugins
         private Effect _reusableEffect = new();
         private string _cachedButtonUi;
 
-        private readonly ApiInstance _api;
+        public readonly ApiInstance _api;
         private Configuration _config;
         private PreferencesData _preferencesData;
         private CapacityData _capacityData;
