@@ -73,7 +73,7 @@ namespace Oxide.Plugins
         private Effect _reusableEffect = new();
         private string _cachedButtonUi;
 
-        public readonly ApiInstance _api;
+        public readonly ApiInstance Api;
         private Configuration _config;
         private PreferencesData _preferencesData;
         private CapacityData _capacityData;
@@ -87,7 +87,7 @@ namespace Oxide.Plugins
         {
             _backpackManager = new BackpackManager(this);
             _capacityManager = new CapacityManager(this, _backpackManager);
-            _api = new ApiInstance(this);
+            Api = new ApiInstance(this);
         }
 
         #endregion
@@ -476,7 +476,7 @@ namespace Oxide.Plugins
 
         #region API
 
-        private class ApiInstance
+        public class ApiInstance
         {
             public readonly Dictionary<string, object> ApiWrapper;
 
@@ -690,247 +690,247 @@ namespace Oxide.Plugins
         [HookMethod(nameof(API_GetApi))]
         public Dictionary<string, object> API_GetApi()
         {
-            return _api.ApiWrapper;
+            return Api.ApiWrapper;
         }
 
         [HookMethod(nameof(API_AddSubscriber))]
         public void API_AddSubscriber(Plugin plugin, Dictionary<string, object> spec)
         {
-            _api.AddSubscriber(plugin, spec);
+            Api.AddSubscriber(plugin, spec);
         }
 
         [HookMethod(nameof(API_RemoveSubscriber))]
         public void API_RemoveSubscriber(Plugin plugin)
         {
-            _api.RemoveSubscriber(plugin);
+            Api.RemoveSubscriber(plugin);
         }
 
         // Deprecated, only returns container for first page. Use higher level APIs instead.
         [HookMethod(nameof(API_GetExistingBackpacks))]
         public Dictionary<ulong, ItemContainer> API_GetExistingBackpacks()
         {
-            return _api.GetExistingBackpacks();
+            return Api.GetExistingBackpacks();
         }
 
         [HookMethod(nameof(API_EraseBackpack))]
         public void API_EraseBackpack(ulong userId)
         {
-            _api.EraseBackpack(userId);
+            Api.EraseBackpack(userId);
         }
         [HookMethod(nameof(API_EraseBackpack))]
         public void API_EraseBackpack(EncryptedValue<ulong> userId)
         {
-            _api.EraseBackpack(userId);
+            Api.EraseBackpack(userId);
         }
 
         [HookMethod(nameof(API_DropBackpack))]
         public DroppedItemContainer API_DropBackpack(BasePlayer player, List<DroppedItemContainer> collect = null)
         {
-            return _api.DropBackpack(player, collect);
+            return Api.DropBackpack(player, collect);
         }
 
         [HookMethod(nameof(API_GetBackpackOwnerId))]
         public object API_GetBackpackOwnerId(ItemContainer container)
         {
-            return ObjectCache.Get(_api.GetBackpackOwnerId(container));
+            return ObjectCache.Get(Api.GetBackpackOwnerId(container));
         }
 
         [HookMethod(nameof(API_IsBackpackLoaded))]
         public object API_IsBackpackLoaded(BasePlayer player)
         {
-            return ObjectCache.Get(_api.IsBackpackLoaded(player));
+            return ObjectCache.Get(Api.IsBackpackLoaded(player));
         }
 
         [HookMethod(nameof(API_IsDynamicCapacityEnabled))]
         public object API_IsDynamicCapacityEnabled(BasePlayer player)
         {
-            return ObjectCache.Get(_api.IsDynamicCapacityEnabled());
+            return ObjectCache.Get(Api.IsDynamicCapacityEnabled());
         }
 
         [HookMethod(nameof(API_GetBackpackCapacity))]
         public object API_GetBackpackCapacity(BasePlayer player)
         {
-            return ObjectCache.Get(_api.GetBackpackCapacity(player));
+            return ObjectCache.Get(Api.GetBackpackCapacity(player));
         }
         
         [HookMethod(nameof(API_GetBackpackCapacityById))]
         public object API_GetBackpackCapacityById(ulong playerID, string playerIDString)
         {
-            return ObjectCache.Get(_api.GetBackpackCapacityById(playerID, playerIDString));
+            return ObjectCache.Get(Api.GetBackpackCapacityById(playerID, playerIDString));
         }
         [HookMethod(nameof(API_GetBackpackCapacityById))]
         public object API_GetBackpackCapacityById(EncryptedValue<ulong> playerID, string playerIDString)
         {
-            return ObjectCache.Get(_api.GetBackpackCapacityById(playerID, playerIDString));
+            return ObjectCache.Get(Api.GetBackpackCapacityById(playerID, playerIDString));
         }
 
         [HookMethod(nameof(API_GetBackpackInitialCapacity))]
         public object API_GetBackpackInitialCapacity(BasePlayer player)
         {
-            return ObjectCache.Get(_api.GetBackpackInitialCapacity(player));
+            return ObjectCache.Get(Api.GetBackpackInitialCapacity(player));
         }
 
         [HookMethod(nameof(API_GetBackpackMaxCapacity))]
         public object API_GetBackpackMaxCapacity(BasePlayer player)
         {
-            return ObjectCache.Get(_api.GetBackpackMaxCapacity(player));
+            return ObjectCache.Get(Api.GetBackpackMaxCapacity(player));
         }
 
         [HookMethod(nameof(API_AddBackpackCapacity))]
         public object API_AddBackpackCapacity(BasePlayer player, int amount)
         {
-            return ObjectCache.Get(_api.AddBackpackCapacity(player, amount));
+            return ObjectCache.Get(Api.AddBackpackCapacity(player, amount));
         }
 
         [HookMethod(nameof(API_SetBackpackCapacity))]
         public object API_SetBackpackCapacity(BasePlayer player, int capacity)
         {
-            return ObjectCache.Get(_api.SetBackpackCapacity(player, capacity));
+            return ObjectCache.Get(Api.SetBackpackCapacity(player, capacity));
         }
 
         [HookMethod(nameof(API_IsBackpackGathering))]
         public object API_IsBackpackGathering(BasePlayer player)
         {
-            return ObjectCache.Get(_api.IsBackpackGathering(player));
+            return ObjectCache.Get(Api.IsBackpackGathering(player));
         }
 
         [HookMethod(nameof(API_IsBackpackRetrieving))]
         public object API_IsBackpackRetrieving(BasePlayer player)
         {
-            return ObjectCache.Get(_api.IsBackpackRetrieving(player));
+            return ObjectCache.Get(Api.IsBackpackRetrieving(player));
         }
 
         // Deprecated, only returns container for first page. Use higher level APIs instead.
         [HookMethod(nameof(API_GetBackpackContainer))]
         public ItemContainer API_GetBackpackContainer(ulong ownerId)
         {
-            return _api.GetBackpackContainer(ownerId);
+            return Api.GetBackpackContainer(ownerId);
         }
         [HookMethod(nameof(API_GetBackpackContainer))]
         public ItemContainer API_GetBackpackContainer(EncryptedValue<ulong> ownerId)
         {
-            return _api.GetBackpackContainer(ownerId);
+            return Api.GetBackpackContainer(ownerId);
         }
 
         [HookMethod(nameof(API_GetBackpackItemAmount))]
         public int API_GetBackpackItemAmount(ulong ownerId, int itemId, ulong skinId = 0)
         {
-            return _api.GetBackpackItemAmount(ownerId, itemId, skinId);
+            return Api.GetBackpackItemAmount(ownerId, itemId, skinId);
         }
         [HookMethod(nameof(API_GetBackpackItemAmount))]
         public int API_GetBackpackItemAmount(EncryptedValue<ulong> ownerId, int itemId, ulong skinId = 0)
         {
-            return _api.GetBackpackItemAmount(ownerId, itemId, skinId);
+            return Api.GetBackpackItemAmount(ownerId, itemId, skinId);
         }
 
         [HookMethod(nameof(API_TryOpenBackpack))]
         public object API_TryOpenBackpack(BasePlayer player, ulong ownerId = 0)
         {
-            return ObjectCache.Get(_api.TryOpenBackpack(player, ownerId));
+            return ObjectCache.Get(Api.TryOpenBackpack(player, ownerId));
         }
         [HookMethod(nameof(API_TryOpenBackpack))]
         public object API_TryOpenBackpack(BasePlayer player, EncryptedValue<ulong> ownerId = default)
         {
-            return ObjectCache.Get(_api.TryOpenBackpack(player, ownerId));
+            return ObjectCache.Get(Api.TryOpenBackpack(player, ownerId));
         }
 
         [HookMethod(nameof(API_TryOpenBackpackContainer))]
         public object API_TryOpenBackpackContainer(BasePlayer player, ulong ownerId, ItemContainer container)
         {
-            return ObjectCache.Get(_api.TryOpenBackpackContainer(player, ownerId, container));
+            return ObjectCache.Get(Api.TryOpenBackpackContainer(player, ownerId, container));
         }
         [HookMethod(nameof(API_TryOpenBackpackContainer))]
         public object API_TryOpenBackpackContainer(BasePlayer player, EncryptedValue<ulong> ownerId, ItemContainer container)
         {
-            return ObjectCache.Get(_api.TryOpenBackpackContainer(player, ownerId, container));
+            return ObjectCache.Get(Api.TryOpenBackpackContainer(player, ownerId, container));
         }
 
         [HookMethod(nameof(API_TryOpenBackpackPage))]
         public object API_TryOpenBackpackPage(BasePlayer player, ulong ownerId = 0, int page = 0)
         {
-            return ObjectCache.Get(_api.TryOpenBackpackPage(player, ownerId, page));
+            return ObjectCache.Get(Api.TryOpenBackpackPage(player, ownerId, page));
         }
         [HookMethod(nameof(API_TryOpenBackpackPage))]
         public object API_TryOpenBackpackPage(BasePlayer player, EncryptedValue<ulong> ownerId = default, int page = 0)
         {
-            return ObjectCache.Get(_api.TryOpenBackpackPage(player, ownerId, page));
+            return ObjectCache.Get(Api.TryOpenBackpackPage(player, ownerId, page));
         }
 
         [HookMethod(nameof(API_SumBackpackItems))]
         public object API_SumBackpackItems(ulong ownerId, Dictionary<string, object> dict)
         {
-            return ObjectCache.Get(_api.SumBackpackItems(ownerId, dict));
+            return ObjectCache.Get(Api.SumBackpackItems(ownerId, dict));
         }
         [HookMethod(nameof(API_SumBackpackItems))]
         public object API_SumBackpackItems(EncryptedValue<ulong> ownerId, Dictionary<string, object> dict)
         {
-            return ObjectCache.Get(_api.SumBackpackItems(ownerId, dict));
+            return ObjectCache.Get(Api.SumBackpackItems(ownerId, dict));
         }
 
         [HookMethod(nameof(API_CountBackpackItems))]
         public object API_CountBackpackItems(ulong ownerId, Dictionary<string, object> dict)
         {
-            return ObjectCache.Get(_api.CountBackpackItems(ownerId, dict));
+            return ObjectCache.Get(Api.CountBackpackItems(ownerId, dict));
         }
         [HookMethod(nameof(API_CountBackpackItems))]
         public object API_CountBackpackItems(EncryptedValue<ulong> ownerId, Dictionary<string, object> dict)
         {
-            return ObjectCache.Get(_api.CountBackpackItems(ownerId, dict));
+            return ObjectCache.Get(Api.CountBackpackItems(ownerId, dict));
         }
 
         [HookMethod(nameof(API_TakeBackpackItems))]
         public object API_TakeBackpackItems(ulong ownerId, Dictionary<string, object> dict, int amount, List<Item> collect)
         {
-            return ObjectCache.Get(_api.TakeBackpackItems(ownerId, dict, amount, collect));
+            return ObjectCache.Get(Api.TakeBackpackItems(ownerId, dict, amount, collect));
         }
         [HookMethod(nameof(API_TakeBackpackItems))]
         public object API_TakeBackpackItems(EncryptedValue<ulong> ownerId, Dictionary<string, object> dict, int amount, List<Item> collect)
         {
-            return ObjectCache.Get(_api.TakeBackpackItems(ownerId, dict, amount, collect));
+            return ObjectCache.Get(Api.TakeBackpackItems(ownerId, dict, amount, collect));
         }
 
         [HookMethod(nameof(API_MutateBackpackItems))]
         public object API_MutateBackpackItems(ulong ownerId, Dictionary<string, object> itemQueryDict, Dictionary<string, object> mutationRequestDict)
         {
-            return ObjectCache.Get(_api.MutateBackpackItems(ownerId, itemQueryDict, mutationRequestDict));
+            return ObjectCache.Get(Api.MutateBackpackItems(ownerId, itemQueryDict, mutationRequestDict));
         }
         [HookMethod(nameof(API_MutateBackpackItems))]
         public object API_MutateBackpackItems(EncryptedValue<ulong> ownerId, Dictionary<string, object> itemQueryDict, Dictionary<string, object> mutationRequestDict)
         {
-            return ObjectCache.Get(_api.MutateBackpackItems(ownerId, itemQueryDict, mutationRequestDict));
+            return ObjectCache.Get(Api.MutateBackpackItems(ownerId, itemQueryDict, mutationRequestDict));
         }
 
         [HookMethod(nameof(API_TryDepositBackpackItem))]
         public object API_TryDepositBackpackItem(ulong ownerId, Item item)
         {
-            return ObjectCache.Get(_api.TryDepositBackpackItem(ownerId, item));
+            return ObjectCache.Get(Api.TryDepositBackpackItem(ownerId, item));
         }
         [HookMethod(nameof(API_TryDepositBackpackItem))]
         public object API_TryDepositBackpackItem(EncryptedValue<ulong> ownerId, Item item)
         {
-            return ObjectCache.Get(_api.TryDepositBackpackItem(ownerId, item));
+            return ObjectCache.Get(Api.TryDepositBackpackItem(ownerId, item));
         }
 
         [HookMethod(nameof(API_WriteBackpackContentsFromJson))]
         public void API_WriteBackpackContentsFromJson(ulong ownerId, string json)
         {
-            _api.WriteBackpackContentsFromJson(ownerId, json);
+            Api.WriteBackpackContentsFromJson(ownerId, json);
         }
         [HookMethod(nameof(API_WriteBackpackContentsFromJson))]
         public void API_WriteBackpackContentsFromJson(EncryptedValue<ulong> ownerId, string json)
         {
-            _api.WriteBackpackContentsFromJson(ownerId, json);
+            Api.WriteBackpackContentsFromJson(ownerId, json);
         }
 
         [HookMethod(nameof(API_ReadBackpackContentsAsJson))]
         public object API_ReadBackpackContentsAsJson(ulong ownerId)
         {
-            return _api.ReadBackpackContentsAsJson(ownerId);
+            return Api.ReadBackpackContentsAsJson(ownerId);
         }
         [HookMethod(nameof(API_ReadBackpackContentsAsJson))]
         public object API_ReadBackpackContentsAsJson(EncryptedValue<ulong> ownerId)
         {
-            return _api.ReadBackpackContentsAsJson(ownerId);
+            return Api.ReadBackpackContentsAsJson(ownerId);
         }
 
         #endregion
