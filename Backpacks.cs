@@ -1,4 +1,4 @@
-﻿// #define DEBUG_DROP_ON_DEATH
+// #define DEBUG_DROP_ON_DEATH
 // #define DEBUG_POOLING
 // #define DEBUG_BACKPACK_LIFECYCLE
 
@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.15.5")]
+    [Info("Backpacks", "WhiteThunder", "3.17.0")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -45,14 +45,19 @@ namespace Oxide.Plugins
         private const Item.Flag UnsearchableItemFlag = (Item.Flag)(1 << 25);
         private const ItemDefinition.Flag SearchableItemDefinitionFlag = (ItemDefinition.Flag)(1 << 24);
 
+        private const string AdminPermission = "backpacks.admin";
+        private const string AdminViewPermission = "backpacks.admin.view";
+        private const string AdminEditPermission = "backpacks.admin.edit";
+        private const string AdminResizePermission = "backpacks.admin.resize";
+        private const string AdminDebugPermission = "backpacks.admin.debug";
+        private const string AdminProtectedPermission = "backpacks.admin.protected";
+
         private const string UsagePermission = "backpacks.use";
         private const string SizePermission = "backpacks.size";
         private const string GUIPermission = "backpacks.gui";
         private const string FetchPermission = "backpacks.fetch";
         private const string GatherPermission = "backpacks.gather";
         private const string RetrievePermission = "backpacks.retrieve";
-        private const string AdminPermission = "backpacks.admin";
-        private const string AdminProtectedPermission = "backpacks.admin.protected";
         private const string CapacityProfilePermission = "backpacks.size.profile";
         private const string KeepOnDeathPermission = "backpacks.keepondeath";
         private const string NoFoodSpoilingPermission = "backpacks.nofoodspoiling";
@@ -64,6 +69,8 @@ namespace Oxide.Plugins
         private const string ResizableLootPanelName = "generic_resizable";
 
         private const int SaddleBagItemId = 1400460850;
+
+        private readonly object False = false;
 
         private readonly CapacityManager _capacityManager;
         private readonly BackpackManager _backpackManager;
@@ -78,6 +85,7 @@ namespace Oxide.Plugins
         private PreferencesData _preferencesData;
         private CapacityData _capacityData;
         private readonly HashSet<ulong> _uiViewers = new();
+        private readonly DynamicHookSubscriber<BasePlayer> _readonlyBackpackViewers;
         private Coroutine _saveRoutine;
 
         [PluginReference]
@@ -87,6 +95,7 @@ namespace Oxide.Plugins
         {
             _backpackManager = new BackpackManager(this);
             _capacityManager = new CapacityManager(this, _backpackManager);
+            _readonlyBackpackViewers = new DynamicHookSubscriber<BasePlayer>(this, nameof(CanMoveItem), nameof(OnItemAction));
             Api = new ApiInstance(this);
         }
 
@@ -96,13 +105,18 @@ namespace Oxide.Plugins
 
         private void Init()
         {
+            permission.RegisterPermission(AdminPermission, this);
+            permission.RegisterPermission(AdminViewPermission, this);
+            permission.RegisterPermission(AdminEditPermission, this);
+            permission.RegisterPermission(AdminResizePermission, this);
+            permission.RegisterPermission(AdminDebugPermission, this);
+            permission.RegisterPermission(AdminProtectedPermission, this);
+
             permission.RegisterPermission(UsagePermission, this);
             permission.RegisterPermission(GUIPermission, this);
             permission.RegisterPermission(FetchPermission, this);
             permission.RegisterPermission(GatherPermission, this);
             permission.RegisterPermission(RetrievePermission, this);
-            permission.RegisterPermission(AdminPermission, this);
-            permission.RegisterPermission(AdminProtectedPermission, this);
             permission.RegisterPermission(KeepOnDeathPermission, this);
             permission.RegisterPermission(NoFoodSpoilingPermission, this);
 
@@ -118,6 +132,8 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnPlayerSleep));
             Unsubscribe(nameof(OnPlayerSleepEnded));
+
+            _readonlyBackpackViewers.UnsubscribeAll();
 
             if (_config.GUI.Enabled)
             {
@@ -329,6 +345,63 @@ namespace Oxide.Plugins
             }
         }
 
+        private object CanMoveItem(Item item, PlayerInventory playerInventory, ItemContainerId targetContainerId, int targetSlot, int amount)
+        {
+            var player = playerInventory.baseEntity;
+            if (player is null)
+                return null;
+
+            if (!IsLootingBackpackOrChildContainer(player, out var backpack, out _)
+                || player.userID == backpack.OwnerId)
+                return null;
+
+            var itemRootContainer = GetRootContainer(item);
+            if (itemRootContainer == null)
+                return null;
+
+            var requiresPermission = false;
+
+            if (_backpackManager.IsBackpack(itemRootContainer))
+            {
+                // The item being moved is inside a backpack or one of its child containers.
+                requiresPermission = true;
+            }
+            else if (!targetContainerId.IsValid)
+            {
+                // The item is being moved to the backpack or one of its child containers (container not specified).
+                requiresPermission = true;
+            }
+            else
+            {
+                // The item is being moved to the backpack or one of its child containers (container specified).
+                var targetRootContainer = GetRootContainer(playerInventory.FindContainer(targetContainerId));
+                if (targetRootContainer != null && _backpackManager.IsBackpack(targetRootContainer))
+                {
+                    requiresPermission = true;
+                }
+            }
+
+            if (!requiresPermission || VerifyHasPermissionToEditBackpack(player))
+                return null;
+
+            return False;
+        }
+
+        private object OnItemAction(Item item, string action, BasePlayer player)
+        {
+            if (!IsLootingBackpackOrChildContainer(player, out var backpack, out _)
+                || player.userID == backpack.OwnerId)
+                return null;
+
+            var itemRootContainer = GetRootContainer(item);
+            if (itemRootContainer == null
+                || !_backpackManager.IsBackpack(itemRootContainer)
+                || VerifyHasPermissionToEditBackpack(player))
+                return null;
+
+            return False;
+        }
+
         private void OnGroupPermissionGranted(string groupName, string perm)
         {
             if (!perm.StartsWith("backpacks"))
@@ -515,6 +588,7 @@ namespace Oxide.Plugins
                     [nameof(TakeBackpackItems)] = new Func<ulong, Dictionary<string, object>, int, List<Item>, int>(TakeBackpackItems),
                     [nameof(MutateBackpackItems)] = new Func<ulong, Dictionary<string, object>, Dictionary<string, object>, int>(MutateBackpackItems),
                     [nameof(TryDepositBackpackItem)] = new Func<ulong, Item, bool>(TryDepositBackpackItem),
+                    [nameof(PauseBackpackGatherMode)] = new Action<ulong, float>(PauseBackpackGatherMode),
                     [nameof(WriteBackpackContentsFromJson)] = new Action<ulong, string>(WriteBackpackContentsFromJson),
                     [nameof(ReadBackpackContentsAsJson)] = new Func<ulong, string>(ReadBackpackContentsAsJson),
                 };
@@ -674,6 +748,11 @@ namespace Oxide.Plugins
             public bool TryDepositBackpackItem(ulong ownerId, Item item)
             {
                 return _backpackManager.GetBackpack(ownerId).TryDepositItem(item);
+            }
+
+            public void PauseBackpackGatherMode(ulong ownerId, float duration)
+            {
+                _backpackManager.GetBackpackIfExists(ownerId)?.PauseGatherMode(duration);
             }
 
             public void WriteBackpackContentsFromJson(ulong ownerId, string json)
@@ -911,6 +990,17 @@ namespace Oxide.Plugins
             return ObjectCache.Get(Api.TryDepositBackpackItem(ownerId, item));
         }
 
+        [HookMethod(nameof(API_PauseBackpackGatherMode))]
+        public void API_PauseBackpackGatherMode(ulong ownerId, float duration)
+        {
+            _api.PauseBackpackGatherMode(ownerId, duration);
+        }
+        [HookMethod(nameof(API_PauseBackpackGatherMode))]
+        public void API_PauseBackpackGatherMode(EncryptedValue<ulong> ownerId, float duration)
+        {
+            _api.PauseBackpackGatherMode(ownerId, duration);
+        }
+
         [HookMethod(nameof(API_WriteBackpackContentsFromJson))]
         public void API_WriteBackpackContentsFromJson(ulong ownerId, string json)
         {
@@ -1098,7 +1188,7 @@ namespace Oxide.Plugins
         private void ViewBackpackCommand(IPlayer player, string cmd, string[] args)
         {
             if (!VerifyCanInteract(player, out var basePlayer)
-                || !VerifyHasPermission(player, AdminPermission))
+                || !VerifyHasAnyPermission(player, AdminPermission, AdminViewPermission, AdminEditPermission))
                 return;
 
             if (args.Length < 1)
@@ -1131,7 +1221,7 @@ namespace Oxide.Plugins
         [Command("backpack.addsize")]
         private void AddBackpackCapacityCommand(IPlayer player, string cmd, string[] args)
         {
-            if (!VerifyHasPermission(player, AdminPermission))
+            if (!VerifyHasAnyPermission(player, AdminPermission, AdminResizePermission))
                 return;
 
             if (args.Length < 2 || !int.TryParse(args[1], out var amount))
@@ -1151,7 +1241,7 @@ namespace Oxide.Plugins
         [Command("backpack.setsize")]
         private void SetBackpackCapacityCommand(IPlayer player, string cmd, string[] args)
         {
-            if (!VerifyHasPermission(player, AdminPermission))
+            if (!VerifyHasAnyPermission(player, AdminPermission, AdminResizePermission))
                 return;
 
             if (args.Length < 2 || !int.TryParse(args[1], out var amount))
@@ -1268,7 +1358,7 @@ namespace Oxide.Plugins
         [Command("backpack.debug.size", "backpack.debug.capacity")]
         private void DebugSizeCommand(IPlayer player, string cmd, string[] args)
         {
-            if (!VerifyHasPermission(player, AdminPermission))
+            if (!VerifyHasAnyPermission(player, AdminPermission, AdminDebugPermission))
                 return;
 
             if (args.Length < 1)
@@ -1279,6 +1369,12 @@ namespace Oxide.Plugins
 
             if (!VerifyTargetPlayer(player, args[0], out var targetPlayerId, out var targetPlayerIdString))
                 return;
+
+            if (!permission.UserHasPermission(targetPlayerIdString, UsagePermission))
+            {
+                player.Reply($"Player {targetPlayerIdString} is missing the '{UsagePermission}' permission.");
+                return;
+            }
 
             var matchingPermissionsForDebug = new List<(string, int, int)>();
             var capacityInfo = _capacityManager.GetCapacityInfoForDebug(targetPlayerId, targetPlayerIdString, matchingPermissionsForDebug);
@@ -1326,7 +1422,7 @@ namespace Oxide.Plugins
         [Command("backpack.debug.gather")]
         private void DebugGatherCommand(IPlayer player, string cmd, string[] args)
         {
-            if (!VerifyHasPermission(player, AdminPermission))
+            if (!VerifyHasAnyPermission(player, AdminPermission, AdminDebugPermission))
                 return;
 
             if (args.Length < 1)
@@ -1366,7 +1462,9 @@ namespace Oxide.Plugins
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_GatherPaused)).Append(": ").Append(watcher.Stats.GatherFailed_GatherPaused).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_NotAllowedToMoveItems)).Append(": ").Append(watcher.Stats.GatherFailed_NotAllowedToMoveItems).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_FoundMatchingStackInInventory)).Append(": ").Append(watcher.Stats.GatherFailed_FoundMatchingStackInInventory).AppendLine();
-                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem)).Append(": ").Append(watcher.Stats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BackpackOverflowing)).Append(": ").Append(watcher.Stats.GatherFailed_BackpackOverflowing).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_ItemNotAllowed)).Append(": ").Append(watcher.Stats.GatherFailed_ItemNotAllowed).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BlockedByHook)).Append(": ").Append(watcher.Stats.GatherFailed_BlockedByHook).AppendLine();
                 }
             }
 
@@ -1496,6 +1594,18 @@ namespace Oxide.Plugins
             }
 
             return container;
+        }
+
+        private static ItemContainer GetRootContainer(ItemContainer container)
+        {
+            var parentItem = container?.parent;
+            return parentItem != null ? GetRootContainer(parentItem) : container;
+        }
+
+        private bool HasBackpackEditPermission(string userIdString)
+        {
+            return permission.UserHasPermission(userIdString, AdminPermission)
+                || permission.UserHasPermission(userIdString, AdminEditPermission);
         }
 
         private bool TryParseGatherMode(BasePlayer player, string arg, out GatherMode gatherMode)
@@ -1644,7 +1754,17 @@ namespace Oxide.Plugins
 
             var lootingContainer = player.inventory.loot.containers.FirstOrDefault();
             return lootingContainer != null
-                   && _backpackManager.IsBackpack(lootingContainer, out backpack, out pageIndex);
+                && _backpackManager.IsBackpack(lootingContainer, out backpack, out pageIndex);
+        }
+
+        private bool IsLootingBackpackOrChildContainer(BasePlayer player, out Backpack backpack, out int pageIndex)
+        {
+            backpack = null;
+            pageIndex = 0;
+
+            var lootingContainer = player.inventory.loot.containers.FirstOrDefault();
+            return lootingContainer != null
+                && _backpackManager.IsBackpack(GetRootContainer(lootingContainer), out backpack, out pageIndex);
         }
 
         private void OpenBackpackMaybeDelayed(BasePlayer looter, ItemContainer currentContainer, Backpack backpack, int pageIndex, bool isKeyBind)
@@ -1819,7 +1939,28 @@ namespace Oxide.Plugins
             if (player.HasPermission(perm))
                 return true;
 
-            ReplyToPlayer(player, LangEntry.NoPermission);
+            ReplyToPlayer(player, LangEntry.NoPermissionToCommand);
+            return false;
+        }
+
+        private bool VerifyHasAnyPermission(IPlayer player, params string[] permList)
+        {
+            foreach (var perm in permList)
+            {
+                if (player.HasPermission(perm))
+                    return true;
+            }
+
+            ReplyToPlayer(player, LangEntry.NoPermissionToCommand);
+            return false;
+        }
+
+        private bool VerifyHasPermissionToEditBackpack(BasePlayer player)
+        {
+            if (HasBackpackEditPermission(player.UserIDString))
+                return true;
+
+            player.ChatMessage(GetMessage(player.UserIDString, LangEntry.NoPermissionGeneric));
             return false;
         }
 
@@ -2353,6 +2494,60 @@ namespace Oxide.Plugins
                         item.amount -= amount;
                         item.MarkDirty();
                     }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Dynamic Hook Subscriptions
+
+        private class DynamicHookSubscriber<T>
+        {
+            private Backpacks _plugin;
+            private HashSet<T> _list = new();
+            private string[] _hookNames;
+
+            public DynamicHookSubscriber(Backpacks plugin, params string[] hookNames)
+            {
+                _plugin = plugin;
+                _hookNames = hookNames;
+            }
+
+            public bool Contains(T item)
+            {
+                return _list.Contains(item);
+            }
+
+            public void Add(T item)
+            {
+                if (_list.Add(item) && _list.Count == 1)
+                {
+                    SubscribeAll();
+                }
+            }
+
+            public void Remove(T item)
+            {
+                if (_list.Remove(item) && _list.Count == 0)
+                {
+                    UnsubscribeAll();
+                }
+            }
+
+            public void SubscribeAll()
+            {
+                foreach (var hookName in _hookNames)
+                {
+                    _plugin.Subscribe(hookName);
+                }
+            }
+
+            public void UnsubscribeAll()
+            {
+                foreach (var hookName in _hookNames)
+                {
+                    _plugin.Unsubscribe(hookName);
                 }
             }
         }
@@ -4317,9 +4512,14 @@ namespace Oxide.Plugins
                 return _backpackContainers.ContainsKey(container);
             }
 
+            public bool IsBackpack(ItemContainer container, out Backpack backpack)
+            {
+                return _backpackContainers.TryGetValue(container, out backpack);
+            }
+
             public bool IsBackpack(ItemContainer container, out Backpack backpack, out int pageIndex)
             {
-                if (!_backpackContainers.TryGetValue(container, out backpack))
+                if (!IsBackpack(container, out backpack))
                 {
                     pageIndex = 0;
                     return false;
@@ -5743,7 +5943,9 @@ namespace Oxide.Plugins
             public int GatherFailed_GatherPaused;
             public int GatherFailed_NotAllowedToMoveItems;
             public int GatherFailed_FoundMatchingStackInInventory;
-            public int GatherFailed_BackpackRejectedOrDidNotCareAboutItem;
+            public int GatherFailed_BackpackOverflowing;
+            public int GatherFailed_ItemNotAllowed;
+            public int GatherFailed_BlockedByHook;
         }
 
         private class InventoryWatcher : FacepunchBehaviour
@@ -5771,7 +5973,7 @@ namespace Oxide.Plugins
 
             public GatherModeStats Stats;
             private Action<Item, bool> _onItemAddedRemoved;
-            private int _pauseGatherModeUntilFrame;
+            private Item _itemBeingGathered;
 
             public void DestroyImmediate() => DestroyImmediate(this);
 
@@ -5806,7 +6008,14 @@ namespace Oxide.Plugins
             {
                 if (!wasAdded)
                 {
-                    _pauseGatherModeUntilFrame = Time.frameCount + 1;
+                    // Pause gather mode when an item is removed from the player's inventory, except when the item was
+                    // just gathered. One thing this solves is it prevents an item from being gathered when moved
+                    // between inventory containers.
+                    if (item != _itemBeingGathered)
+                    {
+                        _backpack.PauseGatherModeForOneFrame();
+                    }
+
                     return;
                 }
 
@@ -5841,18 +6050,16 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                if (_pauseGatherModeUntilFrame != 0)
+                // Check whether gather mode is paused early in the process as a performance optimization.
+                if (_backpack.IsGatherModePaused())
                 {
-                    if (_pauseGatherModeUntilFrame > Time.frameCount)
-                    {
-                        Stats.GatherFailed_GatherPaused++;
-                        return;
-                    }
-
-                    _pauseGatherModeUntilFrame = 0;
+                    Stats.GatherFailed_GatherPaused++;
+                    return;
                 }
 
-                if (!_player.inventory.CanMoveItemsFrom(_player, item))
+                // Check whether the player can move items according to Rust rules.
+                // For example, this will prevent gathering items while the player is restrained with handcuffs.
+                if (!_player.inventory.CanMoveItemsFrom(_player, item).allowed)
                 {
                     Stats.GatherFailed_NotAllowedToMoveItems++;
                     return;
@@ -5866,21 +6073,15 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                var originalPauseGatherModeUntilFrame = _pauseGatherModeUntilFrame;
-                if (_backpack.TryGatherItem(item))
+                // Record the item being gathered so that we can skip pausing gather mode when it is removed.
+                _itemBeingGathered = item;
+
+                if (_backpack.TryGatherItem(item, ref Stats))
                 {
                     Stats.GatherSucceeded++;
+                }
 
-                    if (originalPauseGatherModeUntilFrame != _pauseGatherModeUntilFrame)
-                    {
-                        // Don't pause gather mode due to gathering an item.
-                        _pauseGatherModeUntilFrame = 0;
-                    }
-                }
-                else
-                {
-                    Stats.GatherFailed_BackpackRejectedOrDidNotCareAboutItem++;
-                }
+                _itemBeingGathered = null;
             }
 
             private bool HasMatchingItem(List<Item> itemList, Item item, ref ItemQuery itemQuery, int maxSlots)
@@ -5900,19 +6101,23 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
-                if (_player.inventory.containerMain != null)
+                var inventory = _player.inventory;
+                if (inventory is not null)
                 {
-                    _player.inventory.containerMain.onItemAddedRemoved -= _onItemAddedRemoved;
-                }
+                    if (inventory.containerMain != null)
+                    {
+                        inventory.containerMain.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
 
-                if (_player.inventory.containerBelt != null)
-                {
-                    _player.inventory.containerBelt.onItemAddedRemoved -= _onItemAddedRemoved;
-                }
+                    if (inventory.containerBelt != null)
+                    {
+                        inventory.containerBelt.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
 
-                if (_player.inventory.containerWear != null)
-                {
-                    _player.inventory.containerWear.onItemAddedRemoved -= _onItemAddedRemoved;
+                    if (inventory.containerWear != null)
+                    {
+                        inventory.containerWear.onItemAddedRemoved -= _onItemAddedRemoved;
+                    }
                 }
 
                 _backpack.HandleGatheringStopped();
@@ -6075,6 +6280,7 @@ namespace Oxide.Plugins
             private readonly List<BasePlayer> _looters = new();
             private readonly List<BasePlayer> _uiViewers = new();
             private InventoryWatcher _inventoryWatcher;
+            private float _pauseGatherModeUntilFrame;
             private float _pauseGatherModeUntilTime;
             private int _checkedAccessOnFrame;
 
@@ -6428,15 +6634,42 @@ namespace Oxide.Plugins
                 _inventoryWatcher = null;
             }
 
+            public void PauseGatherModeForOneFrame()
+            {
+                _pauseGatherModeUntilFrame = Time.frameCount + 1;
+            }
+
             public void PauseGatherMode(float durationSeconds)
             {
                 if (!IsGathering)
                     return;
 
+                PauseGatherModeForOneFrame();
                 _pauseGatherModeUntilTime = Time.time + durationSeconds;
             }
 
-            public bool TryGatherItem(Item item)
+            public bool IsGatherModePaused()
+            {
+                if (_pauseGatherModeUntilFrame != 0)
+                {
+                    if (_pauseGatherModeUntilFrame > Time.frameCount)
+                        return true;
+
+                    _pauseGatherModeUntilFrame = 0;
+                }
+
+                if (_pauseGatherModeUntilTime != 0)
+                {
+                    if (_pauseGatherModeUntilTime > Time.time)
+                        return true;
+
+                    _pauseGatherModeUntilTime = 0;
+                }
+
+                return false;
+            }
+
+            public bool TryGatherItem(Item item, ref GatherModeStats stats)
             {
                 if (!CanGather)
                 {
@@ -6448,22 +6681,23 @@ namespace Oxide.Plugins
 
                 // When overflowing, don't allow items to be added.
                 if (ActualCapacity > AllowedCapacity)
-                    return false;
-
-                if (_pauseGatherModeUntilTime != 0)
                 {
-                    if (_pauseGatherModeUntilTime > Time.time)
-                        return false;
-
-                    _pauseGatherModeUntilTime = 0;
+                    stats.GatherFailed_BackpackOverflowing++;
+                    return false;
                 }
 
                 // Optimization: Don't search pages for a matching item it's not allowed.
                 if (_config.ItemRestrictions.Enabled && !RestrictionRuleset.AllowsItem(item))
+                {
+                    stats.GatherFailed_ItemNotAllowed++;
                     return false;
+                }
 
                 if (!CanAccess)
+                {
+                    stats.GatherFailed_BlockedByHook++;
                     return false;
+                }
 
                 var itemQuery = ItemQuery.FromItem(item);
                 var anyPagesWithGatherAll = false;
@@ -6785,11 +7019,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                if (!_looters.Contains(looter))
-                {
-                    _looters.Add(looter);
-                }
-
+                RegisterLooter(looter);
                 StartLooting(looter, itemContainerAdapter.ItemContainer, itemContainerAdapter.ContainerEntity);
                 ExposedHooks.OnBackpackOpened(looter, OwnerId, itemContainerAdapter.ItemContainer);
                 MaybeCreateContainerUi(looter,  allowedCapacity.PageCount, pageIndex, itemContainerAdapter.Capacity);
@@ -6843,7 +7073,7 @@ namespace Oxide.Plugins
 
             public void OnClosed(BasePlayer looter)
             {
-                _looters.Remove(looter);
+                UnregisterLooter(looter);
 
                 if (_uiViewers.Contains(looter))
                 {
@@ -7007,14 +7237,12 @@ namespace Oxide.Plugins
 
                 if (amountTaken > 0)
                 {
-                    PauseGatherMode(1f);
+                    PauseGatherModeForOneFrame();
 
                     foreach (var item in collect)
                     {
                         player.GiveItem(item);
                     }
-
-                    _pauseGatherModeUntilTime = 0;
                 }
 
                 return amountTaken;
@@ -7431,6 +7659,28 @@ namespace Oxide.Plugins
                 containerAdapter.FreeToPool();
             }
 
+            private void RegisterLooter(BasePlayer looter)
+            {
+                if (!_looters.Contains(looter))
+                {
+                    _looters.Add(looter);
+                }
+
+                if (looter.userID != OwnerId)
+                {
+                    if (!Plugin.HasBackpackEditPermission(looter.UserIDString))
+                    {
+                        Plugin._readonlyBackpackViewers.Add(looter);
+                    }
+                }
+            }
+
+            private void UnregisterLooter(BasePlayer looter)
+            {
+                _looters.Remove(looter);
+                Plugin._readonlyBackpackViewers.Remove(looter);
+            }
+
             private void ForceCloseLooter(BasePlayer looter)
             {
                 looter.inventory.loot.Clear();
@@ -7580,6 +7830,7 @@ namespace Oxide.Plugins
                     return;
 
                 _inventoryWatcher.DestroyImmediate();
+                _pauseGatherModeUntilFrame = 0;
                 _pauseGatherModeUntilTime = 0;
                 _subscriberManager.BroadcastGatherChanged(this, false);
             }
@@ -9249,7 +9500,8 @@ namespace Oxide.Plugins
         {
             public static readonly List<LangEntry> AllLangEntries = new();
 
-            public static readonly LangEntry NoPermission = new("No Permission", "You don't have permission to use this command.");
+            public static readonly LangEntry NoPermissionToCommand = new("No Permission", "You don't have permission to use this command.");
+            public static readonly LangEntry NoPermissionGeneric = new("No Permission - Generic", "You don't have permission to do that.");
             public static readonly LangEntry MayNotOpenBackpackInEvent = new("May Not Open Backpack In Event", "You may not open a backpack while participating in an event!");
             public static readonly LangEntry ViewBackpackSyntax = new("View Backpack Syntax", "Syntax: viewbackpack <name or id>");
             public static readonly LangEntry ViewBackpackProtected = new("View Backpack Protected", "That player's backpack is protected and cannot be accessed.");
