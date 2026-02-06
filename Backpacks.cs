@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.0")]
+    [Info("Backpacks", "WhiteThunder", "3.17.1")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -1465,6 +1465,8 @@ namespace Oxide.Plugins
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BackpackOverflowing)).Append(": ").Append(watcher.Stats.GatherFailed_BackpackOverflowing).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_ItemNotAllowed)).Append(": ").Append(watcher.Stats.GatherFailed_ItemNotAllowed).AppendLine();
                     sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_BlockedByHook)).Append(": ").Append(watcher.Stats.GatherFailed_BlockedByHook).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_ItemRelocated)).Append(": ").Append(watcher.Stats.GatherFailed_ItemRelocated).AppendLine();
+                    sb.Append("- ").Append(nameof(GatherModeStats.GatherFailed_UnknownError)).Append(": ").Append(watcher.Stats.GatherFailed_UnknownError).AppendLine();
                 }
             }
 
@@ -5946,6 +5948,8 @@ namespace Oxide.Plugins
             public int GatherFailed_BackpackOverflowing;
             public int GatherFailed_ItemNotAllowed;
             public int GatherFailed_BlockedByHook;
+            public int GatherFailed_ItemRelocated;
+            public int GatherFailed_UnknownError;
         }
 
         private class InventoryWatcher : FacepunchBehaviour
@@ -5970,16 +5974,19 @@ namespace Oxide.Plugins
 
             private BasePlayer _player;
             private Backpack _backpack;
+            private Queue<(Item, ItemContainer)> _queuedItemsToGather;
 
             public GatherModeStats Stats;
             private Action<Item, bool> _onItemAddedRemoved;
             private Item _itemBeingGathered;
+            private Action _processGatherQueue;
 
             public void DestroyImmediate() => DestroyImmediate(this);
 
             private InventoryWatcher()
             {
                 _onItemAddedRemoved = OnItemAddedRemoved;
+                _processGatherQueue = ProcessGatherQueue;
             }
 
             private bool ShouldIgnoreContainer()
@@ -6073,15 +6080,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                // Record the item being gathered so that we can skip pausing gather mode when it is removed.
-                _itemBeingGathered = item;
-
-                if (_backpack.TryGatherItem(item, ref Stats))
-                {
-                    Stats.GatherSucceeded++;
-                }
-
-                _itemBeingGathered = null;
+                QueueItemForGathering(item);
             }
 
             private bool HasMatchingItem(List<Item> itemList, Item item, ref ItemQuery itemQuery, int maxSlots)
@@ -6097,6 +6096,50 @@ namespace Oxide.Plugins
                 }
 
                 return false;
+            }
+
+            private void QueueItemForGathering(Item item)
+            {
+                _queuedItemsToGather ??= new Queue<(Item, ItemContainer)>();
+                _queuedItemsToGather.Enqueue(new ValueTuple<Item, ItemContainer>(item, item.parent));
+
+                if (_queuedItemsToGather.Count == 1)
+                {
+                    _backpack.Plugin.NextTick(_processGatherQueue);
+                }
+            }
+
+            private void ProcessGatherQueue()
+            {
+                while (_queuedItemsToGather.Count > 0)
+                {
+                    var (item, parentContainer) = _queuedItemsToGather.Dequeue();
+                    if (item.parent != parentContainer)
+                    {
+                        Stats.GatherFailed_ItemRelocated++;
+                        continue;
+                    }
+
+                    // Record the item being gathered so that we can skip pausing gather mode when it is removed.
+                    _itemBeingGathered = item;
+
+                    try
+                    {
+                        if (_backpack.TryGatherItem(item, ref Stats))
+                        {
+                            Stats.GatherSucceeded++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Stats.GatherFailed_UnknownError++;
+                        LogError($"Caught exception when trying to gather item {item.amount} {item.info} (skin: {item.skin}) for player {_player.userID} ({_player.displayName}): {ex}");
+                    }
+                    finally
+                    {
+                        _itemBeingGathered = null;
+                    }
+                }
             }
 
             private void OnDestroy()
