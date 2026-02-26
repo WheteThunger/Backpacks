@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.1")]
+    [Info("Backpacks", "WhiteThunder", "3.17.2")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -8220,7 +8220,7 @@ namespace Oxide.Plugins
 
                     if (Items?.Count > 0)
                     {
-                        headData.clothing ??= Pool.GetList<int>();
+                        headData.clothing ??= Pool.Get<List<int>>();
 
                         foreach (var itemData in Items)
                         {
