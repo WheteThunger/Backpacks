@@ -5054,6 +5054,7 @@ namespace Oxide.Plugins
                 GetOption(raw, "FlagsContain", out itemQuery.FlagsContain);
                 GetOption(raw, "FlagsEqual", out itemQuery.FlagsEqual);
                 GetOption(raw, "IgnoreItem", out itemQuery.IgnoreItem);
+                GetOption(raw, "IgnoreItems", out itemQuery.IgnoreItems);
                 GetOption(raw, "ItemDefinition", out itemQuery.ItemDefinition);
                 GetOption(raw, "ItemId", out itemQuery.ItemId);
                 GetOption(raw, "MinCondition", out itemQuery.MinCondition);
@@ -5076,6 +5077,7 @@ namespace Oxide.Plugins
             public Item.Flag? FlagsContain;
             public Item.Flag? FlagsEqual;
             public Item IgnoreItem;
+            public ICollection<Item> IgnoreItems;
             public ItemDefinition ItemDefinition;
             public int? ItemId;
             public float MinCondition;
@@ -5122,6 +5124,9 @@ namespace Oxide.Plugins
             public int GetUsableAmount(Item item)
             {
                 if (IgnoreItem != null && item == IgnoreItem)
+                    return 0;
+
+                if (IgnoreItems != null && IgnoreItems.Contains(item))
                     return 0;
 
                 var itemId = GetItemId();
@@ -5974,7 +5979,8 @@ namespace Oxide.Plugins
 
             private BasePlayer _player;
             private Backpack _backpack;
-            private Queue<(Item, ItemContainer)> _queuedItemsToGather;
+            private Queue<(Item, ItemContainer)> _gatherQueue;
+            private HashSet<Item> _gatherQueueSet;
 
             public GatherModeStats Stats;
             private Action<Item, bool> _onItemAddedRemoved;
@@ -6073,6 +6079,8 @@ namespace Oxide.Plugins
                 }
 
                 var itemQuery = ItemQuery.FromItem(item);
+                itemQuery.IgnoreItems = _gatherQueueSet;
+
                 if (HasMatchingItem(_player.inventory.containerMain.itemList, item, ref itemQuery, 24)
                     || HasMatchingItem(_player.inventory.containerBelt.itemList, item, ref itemQuery, 6))
                 {
@@ -6100,10 +6108,13 @@ namespace Oxide.Plugins
 
             private void QueueItemForGathering(Item item)
             {
-                _queuedItemsToGather ??= new Queue<(Item, ItemContainer)>();
-                _queuedItemsToGather.Enqueue(new ValueTuple<Item, ItemContainer>(item, item.parent));
+                _gatherQueue ??= new Queue<(Item, ItemContainer)>();
+                _gatherQueue.Enqueue(new ValueTuple<Item, ItemContainer>(item, item.parent));
 
-                if (_queuedItemsToGather.Count == 1)
+                _gatherQueueSet ??= new HashSet<Item>();
+                _gatherQueueSet.Add(item);
+
+                if (_gatherQueue.Count == 1)
                 {
                     _backpack.Plugin.NextTick(_processGatherQueue);
                 }
@@ -6111,9 +6122,11 @@ namespace Oxide.Plugins
 
             private void ProcessGatherQueue()
             {
-                while (_queuedItemsToGather.Count > 0)
+                while (_gatherQueue.Count > 0)
                 {
-                    var (item, parentContainer) = _queuedItemsToGather.Dequeue();
+                    var (item, parentContainer) = _gatherQueue.Dequeue();
+                    _gatherQueueSet.Remove(item);
+
                     if (item.parent != parentContainer)
                     {
                         Stats.GatherFailed_ItemRelocated++;
