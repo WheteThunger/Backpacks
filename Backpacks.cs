@@ -4820,7 +4820,7 @@ namespace Oxide.Plugins
 
             public void Subscribe(BasePlayer player)
             {
-                if (player.Connection == null || _subscribers.Contains(player))
+                if (player.Connection == null || player.net == null || _subscribers.Contains(player))
                     return;
 
                 _subscribers.Add(player);
