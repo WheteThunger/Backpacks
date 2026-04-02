@@ -1650,6 +1650,9 @@ namespace Oxide.Plugins
             if (string.IsNullOrWhiteSpace(effectPrefab))
                 return;
 
+            if (player.net?.connection == null)
+                return;
+
             _reusableEffect.Init(Effect.Type.Generic, player, 0, Vector3.zero, Vector3.forward);
             _reusableEffect.pooledString = effectPrefab;
             EffectNetwork.Send(_reusableEffect, player.net.connection);
@@ -4864,8 +4867,8 @@ namespace Oxide.Plugins
                     return;
 
                 // Unregister the client from the group so they don't get future entity updates.
-                NetworkGroup.subscribers.Remove(player.Connection);
-                player.net.subscriber.subscribed.Remove(NetworkGroup);
+                NetworkGroup.subscribers?.Remove(player.Connection);
+                player.net?.subscriber?.subscribed.Remove(NetworkGroup);
 
                 // Send the client a message so they kill all client-side entities in the group.
                 ServerMgr.OnLeaveVisibility(player.Connection, NetworkGroup);
