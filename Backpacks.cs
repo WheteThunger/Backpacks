@@ -1650,6 +1650,9 @@ namespace Oxide.Plugins
             if (string.IsNullOrWhiteSpace(effectPrefab))
                 return;
 
+            if (player.net?.connection == null)
+                return;
+
             _reusableEffect.Init(Effect.Type.Generic, player, 0, Vector3.zero, Vector3.forward);
             _reusableEffect.pooledString = effectPrefab;
             EffectNetwork.Send(_reusableEffect, player.net.connection);
@@ -4820,7 +4823,7 @@ namespace Oxide.Plugins
 
             public void Subscribe(BasePlayer player)
             {
-                if (player.Connection == null || _subscribers.Contains(player))
+                if (player.Connection == null || player.net == null || _subscribers.Contains(player))
                     return;
 
                 _subscribers.Add(player);
@@ -4830,19 +4833,24 @@ namespace Oxide.Plugins
 
                 // Send the client a snapshot of every entity currently in the group.
                 // Don't use the entity queue for this because it could be cleared which could cause updates to be missed.
-                foreach (var networkable in NetworkGroup.networkables)
+                if (NetworkGroup.networkables != null)
                 {
-                    (networkable.handler as BaseNetworkable).SendAsSnapshot(player.Connection);
+                    foreach (var networkable in NetworkGroup.networkables)
+                    {
+                        var networkable2 = networkable.handler as BaseNetworkable;
+                        if (networkable2 == null) continue;
+                        networkable2.SendAsSnapshot(player.Connection);
+                    }
                 }
 
-                if (!NetworkGroup.subscribers.Contains(player.Connection))
+                if (NetworkGroup.subscribers != null && !NetworkGroup.subscribers.Contains(player.Connection))
                 {
                     // Register the client with the group so that entities added to it will be automatically sent to the client.
                     NetworkGroup.subscribers.Add(player.Connection);
                 }
 
                 var subscriber = player.net.subscriber;
-                if (!subscriber.subscribed.Contains(NetworkGroup))
+                if (subscriber != null && !subscriber.subscribed.Contains(NetworkGroup))
                 {
                     // Register the group with the client so that ShouldNetworkTo() returns true in SendNetworkUpdate().
                     // This covers cases such as toggling a pager's silent mode.
@@ -4859,8 +4867,8 @@ namespace Oxide.Plugins
                     return;
 
                 // Unregister the client from the group so they don't get future entity updates.
-                NetworkGroup.subscribers.Remove(player.Connection);
-                player.net.subscriber.subscribed.Remove(NetworkGroup);
+                NetworkGroup.subscribers?.Remove(player.Connection);
+                player.net?.subscriber?.subscribed.Remove(NetworkGroup);
 
                 // Send the client a message so they kill all client-side entities in the group.
                 ServerMgr.OnLeaveVisibility(player.Connection, NetworkGroup);
