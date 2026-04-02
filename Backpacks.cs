@@ -4830,23 +4830,29 @@ namespace Oxide.Plugins
 
                 // Send the client a snapshot of every entity currently in the group.
                 // Don't use the entity queue for this because it could be cleared which could cause updates to be missed.
-                foreach (var networkable in NetworkGroup.networkables)
+                if (NetworkGroup.networkables != null)
                 {
-                    (networkable.handler as BaseNetworkable).SendAsSnapshot(player.Connection);
+                    foreach (var networkable in NetworkGroup.networkables)
+                    {
+                        (networkable.handler as BaseNetworkable).SendAsSnapshot(player.Connection);
+                    }
                 }
 
-                if (!NetworkGroup.subscribers.Contains(player.Connection))
+                // Register the client with the group and the group with the client.
+                // Subscriber.Subscribe() handles both: adds group to subscriber.subscribed
+                // and calls group.AddSubscriber(connection).
+                var subscriber = player.net?.subscriber;
+                if (subscriber != null)
                 {
-                    // Register the client with the group so that entities added to it will be automatically sent to the client.
-                    NetworkGroup.subscribers.Add(player.Connection);
+                    if (!subscriber.IsSubscribed(NetworkGroup))
+                    {
+                        subscriber.Subscribe(NetworkGroup);
+                    }
                 }
-
-                var subscriber = player.net.subscriber;
-                if (!subscriber.subscribed.Contains(NetworkGroup))
+                else
                 {
-                    // Register the group with the client so that ShouldNetworkTo() returns true in SendNetworkUpdate().
-                    // This covers cases such as toggling a pager's silent mode.
-                    subscriber.subscribed.Add(NetworkGroup);
+                    // Fallback if subscriber not yet initialized
+                    NetworkGroup.AddSubscriber(player.Connection);
                 }
             }
 
@@ -4859,8 +4865,17 @@ namespace Oxide.Plugins
                     return;
 
                 // Unregister the client from the group so they don't get future entity updates.
-                NetworkGroup.subscribers.Remove(player.Connection);
-                player.net.subscriber.subscribed.Remove(NetworkGroup);
+                // Subscriber.Unsubscribe() handles both: removes group from subscriber.subscribed
+                // and calls group.RemoveSubscriber(connection).
+                var subscriber = player.net?.subscriber;
+                if (subscriber != null)
+                {
+                    subscriber.Unsubscribe(NetworkGroup);
+                }
+                else
+                {
+                    NetworkGroup.RemoveSubscriber(player.Connection);
+                }
 
                 // Send the client a message so they kill all client-side entities in the group.
                 ServerMgr.OnLeaveVisibility(player.Connection, NetworkGroup);
