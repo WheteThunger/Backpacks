@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.2")]
+    [Info("Backpacks", "WhiteThunder", "3.17.3")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -4828,26 +4828,20 @@ namespace Oxide.Plugins
                 // Send the client a message letting them know they are subscribed to the group.
                 ServerMgr.OnEnterVisibility(player.Connection, NetworkGroup);
 
-                // Send the client a snapshot of every entity currently in the group.
-                // Don't use the entity queue for this because it could be cleared which could cause updates to be missed.
-                foreach (var networkable in NetworkGroup.networkables)
+                if (NetworkGroup.networkables != null)
                 {
-                    (networkable.handler as BaseNetworkable).SendAsSnapshot(player.Connection);
+                    // Send the client a snapshot of every entity currently in the group.
+                    // Don't use the entity queue for this because it could be cleared which could cause updates to be missed.
+                    foreach (var networkable in NetworkGroup.networkables)
+                    {
+                        (networkable.handler as BaseNetworkable).SendAsSnapshot(player.Connection);
+                    }
                 }
 
-                if (!NetworkGroup.subscribers.Contains(player.Connection))
-                {
-                    // Register the client with the group so that entities added to it will be automatically sent to the client.
-                    NetworkGroup.subscribers.Add(player.Connection);
-                }
-
-                var subscriber = player.net.subscriber;
-                if (!subscriber.subscribed.Contains(NetworkGroup))
-                {
-                    // Register the group with the client so that ShouldNetworkTo() returns true in SendNetworkUpdate().
-                    // This covers cases such as toggling a pager's silent mode.
-                    subscriber.subscribed.Add(NetworkGroup);
-                }
+                // Register the client with the group so that entities added to it will be automatically sent to the client.
+                // Register the group with the client so that ShouldNetworkTo() returns true in SendNetworkUpdate().
+                // This covers cases such as toggling a pager's silent mode.
+                player.net.subscriber?.Subscribe(NetworkGroup);
             }
 
             public void Unsubscribe(BasePlayer player)
@@ -4858,11 +4852,10 @@ namespace Oxide.Plugins
                 if (player.Connection == null)
                     return;
 
-                // Unregister the client from the group so they don't get future entity updates.
-                NetworkGroup.subscribers.Remove(player.Connection);
-                player.net.subscriber.subscribed.Remove(NetworkGroup);
+                // Unregister the client from the group, so they don't get future entity updates.
+                player.net.subscriber?.Unsubscribe(NetworkGroup);
 
-                // Send the client a message so they kill all client-side entities in the group.
+                // Send the client a message, so they kill all client-side entities in the group.
                 ServerMgr.OnLeaveVisibility(player.Connection, NetworkGroup);
             }
 
