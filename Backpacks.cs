@@ -6728,7 +6728,8 @@ namespace Oxide.Plugins
 
             public bool TryGatherItem(Item item, ref GatherModeStats stats)
             {
-                if (!CanGather)
+                // Confirm the plugin is loaded in case anything goes wrong while unloading.
+                if (!CanGather || Plugin is not { IsLoaded: true })
                 {
                     GatherModeByPage.Clear();
                     SetFlag(Flag.Dirty, true);
