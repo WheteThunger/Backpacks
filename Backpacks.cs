@@ -4688,14 +4688,22 @@ namespace Oxide.Plugins
                         LogError($"Error when saving player backpack {backpack.OwnerIdString}:\n{ex}");
                     }
 
-                    // Kill the backpack to free up space, if no admins are viewing it and its owner is disconnected.
-                    if (!keepInUseBackpacks || (!backpack.HasLooters && BasePlayer.FindByID(backpack.OwnerId) == null))
+                    try
                     {
-                        backpack.Kill();
-                        _cachedBackpacks.Remove(backpack.OwnerId);
-                        _backpackPathCache.Remove(backpack.OwnerId);
-                        var backpackToFree = backpack;
-                        CustomPool.Free(ref backpackToFree);
+                        // Kill the backpack to free up space, if no admins are viewing it and its owner is disconnected.
+                        if (!keepInUseBackpacks
+                            || (!backpack.HasLooters && BasePlayer.FindByID(backpack.OwnerId) == null))
+                        {
+                            backpack.Kill();
+                            _cachedBackpacks.Remove(backpack.OwnerId);
+                            _backpackPathCache.Remove(backpack.OwnerId);
+                            var backpackToFree = backpack;
+                            CustomPool.Free(ref backpackToFree);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Error when killing player backpack {backpack.OwnerIdString}:\n{ex}");
                     }
 
                     if (didSave && async)
