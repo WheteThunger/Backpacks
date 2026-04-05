@@ -189,92 +189,7 @@ namespace Oxide.Plugins
 
         private void OnNewSave(string filename)
         {
-            if (_config.BackpackSize.DynamicSize is { Enabled: true, CapacityResetOptions.Enabled: true })
-            {
-                _capacityData.Clear();
-                if (_capacityData.SaveIfChanged())
-                {
-                    LogWarning("Dynamic size data has been reset.");
-                }
-            }
-
-            if (_config.ClearOnWipe.Enabled)
-            {
-                _backpackManager.ClearCache();
-
-                IEnumerable<string> backpackFileNameList;
-                try
-                {
-                    backpackFileNameList = Interface.Oxide.DataFileSystem.GetFiles(Name)
-                        .Select(fn => fn.Split(Path.DirectorySeparatorChar).Last()
-                            .Replace(".json", string.Empty));
-                }
-                catch (DirectoryNotFoundException)
-                {
-                    // No backpacks to clear.
-                    return;
-                }
-
-                var retainedDueToContents = 0;
-                var retainedDueToPreferences = 0;
-                var deletedBackpackFiles = 0;
-
-                foreach (var backpackFileName in backpackFileNameList)
-                {
-                    if (!ulong.TryParse(backpackFileName, out var userId))
-                        continue;
-
-                    var backpack = _backpackManager.GetBackpackIfExists(userId);
-                    if (backpack == null)
-                        continue;
-
-                    backpack.EraseContents(_config.ClearOnWipe.GetForPlayer(backpackFileName));
-
-                    // Only delete the backpack data file if it's empty and has no saved preferences.
-                    if (backpack.HasItems || backpack.HasPreferences)
-                    {
-                        backpack.SaveIfChanged();
-
-                        if (backpack.HasItems)
-                        {
-                            retainedDueToContents++;
-                        }
-                        else if (backpack.HasPreferences)
-                        {
-                            retainedDueToPreferences++;
-                        }
-                    }
-                    else
-                    {
-                        _backpackManager.DeleteBackpackFile(userId);
-                        deletedBackpackFiles++;
-                    }
-                }
-
-                _backpackManager.ClearCache();
-
-                var logMessage =
-                    "New save created. Backpacks were wiped according to the config and player permissions.";
-                if (deletedBackpackFiles > 0)
-                {
-                    logMessage +=
-                        $"\n- {deletedBackpackFiles} file(s) were deleted because those backpacks are now empty.";
-                }
-
-                if (retainedDueToContents > 0)
-                {
-                    logMessage +=
-                        $"\n- {retainedDueToContents} file(s) were retained because those backpacks were not empty after applying the player's wipe ruleset.";
-                }
-
-                if (retainedDueToPreferences > 0)
-                {
-                    logMessage +=
-                        $"\n- {retainedDueToPreferences} file(s) were retained even though those backpacks are empty because they contain player gather/retrieve preferences.";
-                }
-
-                LogWarning(logMessage);
-            }
+            PerformBackpackWipe("New save created");
         }
 
         private void OnServerSave()
@@ -1184,6 +1099,15 @@ namespace Oxide.Plugins
             LogWarning($"Erased backpack for player {userId.ToString()}.");
         }
 
+        [Command("backpack.wipeall")]
+        private void WipeAllBackpacksCommand(IPlayer player, string cmd, string[] args)
+        {
+            if (!player.IsServer)
+                return;
+
+            PerformBackpackWipe("All backpacks wiped by command");
+        }
+
         [Command("viewbackpack")]
         private void ViewBackpackCommand(IPlayer player, string cmd, string[] args)
         {
@@ -1481,6 +1405,99 @@ namespace Oxide.Plugins
         public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Backpacks] {message}");
         public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Backpacks] {message}");
         public static void LogError(string message) => Interface.Oxide.LogError($"[Backpacks] {message}");
+
+        private void PerformBackpackWipe(string reason)
+        {
+            if (_config.BackpackSize.DynamicSize is { Enabled: true, CapacityResetOptions.Enabled: true })
+            {
+                _capacityData.Clear();
+                if (_capacityData.SaveIfChanged())
+                {
+                    LogWarning("Dynamic size data has been reset.");
+                }
+            }
+
+            if (!_config.ClearOnWipe.Enabled)
+            {
+                LogWarning("Backpack wipe on wipe is not enabled in the config.");
+                return;
+            }
+
+            // Save pending changes since some items may need to be retained according to wipe rulesets.
+            // This is only relevant when the wipe is performed manually after the server has been running for a while.
+            ServerMgr.Instance.StartCoroutine(_backpackManager.SaveAllAndKill(false, false));
+
+            _backpackManager.ClearCache();
+
+            IEnumerable<string> backpackFileNameList;
+            try
+            {
+                backpackFileNameList = Interface.Oxide.DataFileSystem.GetFiles(Name)
+                    .Select(fn => fn.Split(Path.DirectorySeparatorChar).Last()
+                        .Replace(".json", string.Empty));
+            }
+            catch (DirectoryNotFoundException)
+            {
+                LogWarning("No backpacks to wipe.");
+                return;
+            }
+
+            var retainedDueToContents = 0;
+            var retainedDueToPreferences = 0;
+            var deletedBackpackFiles = 0;
+
+            foreach (var backpackFileName in backpackFileNameList)
+            {
+                if (!ulong.TryParse(backpackFileName, out var userId))
+                    continue;
+
+                var backpack = _backpackManager.GetBackpackIfExists(userId);
+                if (backpack == null)
+                    continue;
+
+                backpack.EraseContents(_config.ClearOnWipe.GetForPlayer(backpackFileName));
+
+                // Only delete the backpack data file if it's empty and has no saved preferences.
+                if (backpack.HasItems || backpack.HasPreferences)
+                {
+                    backpack.SaveIfChanged();
+
+                    if (backpack.HasItems)
+                    {
+                        retainedDueToContents++;
+                    }
+                    else if (backpack.HasPreferences)
+                    {
+                        retainedDueToPreferences++;
+                    }
+                }
+                else
+                {
+                    _backpackManager.DeleteBackpackFile(userId);
+                    deletedBackpackFiles++;
+                }
+            }
+
+            _backpackManager.ClearCache();
+
+            var logMessage = $"{reason}. Backpacks were wiped according to the config and player permissions.";
+            if (deletedBackpackFiles > 0)
+            {
+                logMessage += $"\n- {deletedBackpackFiles} file(s) were deleted because those backpacks are now empty.";
+            }
+
+            if (retainedDueToContents > 0)
+            {
+                logMessage += $"\n- {retainedDueToContents} file(s) were retained because those backpacks were not empty after applying the player's wipe ruleset.";
+            }
+
+            if (retainedDueToPreferences > 0)
+            {
+                logMessage += $"\n- {retainedDueToPreferences} file(s) were retained even though those backpacks are empty because they contain player gather/retrieve preferences.";
+            }
+
+            LogWarning(logMessage);
+        }
 
         private static T[] ParseEnumList<T>(string[] list, string errorFormat) where T : struct
         {

@@ -55,6 +55,7 @@ Alternatively, instead of enabling the GUI button in this plugin, consider using
 
 ### Server commands
 
+- `backpack.wipeall` -- Wipes dynamic backpack size data and backpack contents for all players according to the configured wipe rulesets, the same as when the server wipes. You can use this command to test what would happen on a server wipe, or to forcibly trigger a wipe if something went wrong (e.g., if the Backpacks plugin was not loaded when the new map save file was created, then Backpacks could not have detected the wipe event, so you would need to run this manually).
 - `backpack.erase <steam id>` -- Forcibly erases **all** the contents of a specific player's backpack, even if they have `backpack.keeponwipe.*` permissions that would normally exempt them.
 
 ## Permissions
