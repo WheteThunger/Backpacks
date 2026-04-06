@@ -6314,6 +6314,7 @@ namespace Oxide.Plugins
             }
 
             private const float FeedbackThrottleSeconds = 1f;
+            private const float ArcticBiomeCacheDurationSeconds = 10f;
 
             private static int CalculatePageIndexForItemPosition(int position)
             {
@@ -6348,6 +6349,8 @@ namespace Oxide.Plugins
             private bool _canGather;
             private bool _canRetrieve;
             private float _foodSpoilingMultiplier;
+            private bool _isInArcticBiome;
+            private float _arcticBiomeLastCheckTime;
             private DynamicConfigFile _dataFile;
             private BasePlayer _owner;
             private ContainerAdapterCollection _containerAdapters;
@@ -6380,10 +6383,7 @@ namespace Oxide.Plugins
                             }
                         }
 
-                        if (_owner == null)
-                        {
-                            _owner = BasePlayer.FindByID(OwnerId);
-                        }
+                        _owner ??= BasePlayer.FindByID(OwnerId);
                     }
 
                     return _owner;
@@ -6468,6 +6468,14 @@ namespace Oxide.Plugins
                         _foodSpoilingMultiplier = Plugin.permission.UserHasPermission(OwnerIdString, NoFoodSpoilingPermission) ? 0 : 1f;
                         SetFlag(Flag.FoodSpoilingCached, true);
                     }
+
+                    // If already disabled by permission, keep it at 0.
+                    if (_foodSpoilingMultiplier == 0)
+                        return 0;
+
+                    // Check if player is in arctic biome.
+                    if (IsOwnerInArcticBiome())
+                        return 0;
 
                     return _foodSpoilingMultiplier;
                 }
@@ -6644,6 +6652,29 @@ namespace Oxide.Plugins
             public bool HasFlag(Flag flag)
             {
                 return _flags.HasFlag(flag);
+            }
+
+            private bool IsOwnerInArcticBiome()
+            {
+                var currentTime = Time.time;
+                if (currentTime - _arcticBiomeLastCheckTime < ArcticBiomeCacheDurationSeconds)
+                    return _isInArcticBiome;
+
+                // Cache is stale, need to check current location.
+                var player = Owner;
+                if (player == null)
+                {
+                    // Player not found - keep using cached value.
+                    return _isInArcticBiome;
+                }
+
+                // Check if player is in arctic biome.
+                _isInArcticBiome = TerrainMeta.BiomeMap.GetBiome(player.transform.position, TerrainBiome.ARCTIC) > 0f;
+
+                // Update cache timestamp.
+                _arcticBiomeLastCheckTime = currentTime;
+
+                return _isInArcticBiome;
             }
 
             public void MarkDirty()
@@ -7345,7 +7376,6 @@ namespace Oxide.Plugins
 
                     _rejectedItems.Clear();
                 }
-
             }
 
             public string SerializeContentsAsJson()
