@@ -69,6 +69,7 @@ namespace Oxide.Plugins
         private const string ResizableLootPanelName = "generic_resizable";
 
         private const int SaddleBagItemId = 1400460850;
+        private const float BackpackContainerHeight = -500f;
 
         private readonly object False = false;
 
@@ -79,6 +80,7 @@ namespace Oxide.Plugins
         private ProtectionProperties _immortalProtection;
         private Effect _reusableEffect = new();
         private string _cachedButtonUi;
+        private Vector3 _backpackContainerPosition;
 
         public readonly ApiInstance Api;
         private Configuration _config;
@@ -149,6 +151,16 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
+            if (TryFindBackpackContainerPositionNotInArcticBiome(out var position, out var sampleCount))
+            {
+                _backpackContainerPosition = position;
+            }
+            else
+            {
+                LogWarning($"Warning: All backpacks will be exempt from food spoiling because the plugin failed to locate a map position outside of the Arctic Biome out of [{sampleCount}] samples.");
+                _backpackContainerPosition = new Vector3(0f, BackpackContainerHeight, 0f);
+            }
+
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
             _immortalProtection.name = "BackpacksProtection";
             _immortalProtection.Add(1);
@@ -1614,6 +1626,44 @@ namespace Oxide.Plugins
         {
             var parentItem = container?.parent;
             return parentItem != null ? GetRootContainer(parentItem) : container;
+        }
+
+        private static bool IsPositionInArcticBiome(Vector3 position)
+        {
+            return TerrainMeta.BiomeMap.GetBiome(position, TerrainBiome.ARCTIC) > 0f;
+        }
+
+        // Best effort grid-based sampling to find a map position outside the Arctic biome.
+        // There may be a better way to do this by directly accessing the underlying terrain data.
+        private static bool TryFindBackpackContainerPositionNotInArcticBiome(out Vector3 position, out int sampleCount)
+        {
+            var gridSize = 10;
+            sampleCount = gridSize * gridSize;
+
+            // Start with the center (old position).
+            position = new Vector3(0, BackpackContainerHeight, 0);
+            if (IsPositionInArcticBiome(position))
+                return true;
+
+            var worldSize = TerrainMeta.Size.x;
+            var step = worldSize / gridSize;
+
+            for (var x = 0; x < gridSize; x++)
+            {
+                for (var z = 0; z < gridSize; z++)
+                {
+                    position = new Vector3(
+                        x * step - worldSize / 2,
+                        BackpackContainerHeight,
+                        z * step - worldSize / 2
+                    );
+
+                    if (!IsPositionInArcticBiome(position))
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private bool HasBackpackEditPermission(string userIdString)
@@ -6687,7 +6737,7 @@ namespace Oxide.Plugins
                 }
 
                 // Check if player is in arctic biome.
-                _isInArcticBiome = TerrainMeta.BiomeMap.GetBiome(player.transform.position, TerrainBiome.ARCTIC) > 0f;
+                _isInArcticBiome = IsPositionInArcticBiome(player.transform.position);
 
                 // Update cache timestamp.
                 _arcticBiomeLastCheckTime = currentTime;
@@ -7823,7 +7873,7 @@ namespace Oxide.Plugins
 
             private StorageContainer SpawnStorageContainer(int capacity)
             {
-                var storageEntity = GameManager.server.CreateEntity(CoffinPrefab, new Vector3(0, -500, 0));
+                var storageEntity = GameManager.server.CreateEntity(CoffinPrefab, Plugin._backpackContainerPosition);
                 if (storageEntity == null)
                     return null;
 
