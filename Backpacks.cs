@@ -1559,11 +1559,6 @@ namespace Oxide.Plugins
                    ?? ResizableLootPanelName;
         }
 
-        private static void ClosePlayerInventory(BasePlayer player)
-        {
-            player.ClientRPCPlayer(null, player, "OnRespawnInformation");
-        }
-
         private static float CalculateOpenDelay(ItemContainer currentContainer, int nextContainerCapacity, bool isKeyBind = false)
         {
             if (currentContainer != null)
@@ -1597,7 +1592,7 @@ namespace Oxide.Plugins
             {
                 player.inventory.loot.AddContainer(container);
                 player.inventory.loot.SendImmediate();
-                player.ClientRPCPlayer(null, player, "RPC_OpenLootPanel", entitySource.panelName);
+                RPCUtils.OpenLootPanel(player, entitySource.panelName);
             }
         }
 
@@ -1827,7 +1822,6 @@ namespace Oxide.Plugins
                         {
                             // Close the backpack.
                             looter.EndLooting();
-                            ClosePlayerInventory(looter);
                         }
                         return;
                     }
@@ -2517,6 +2511,14 @@ namespace Oxide.Plugins
             }
         }
 
+        private static class RPCUtils
+        {
+            public static void OpenLootPanel(BasePlayer player, string panelName)
+            {
+                player.ClientRPC(RpcTarget.Player("RPC_OpenLootPanel", player), panelName);
+            }
+        }
+
         #endregion
 
         #region Dynamic Hook Subscriptions
@@ -3015,8 +3017,24 @@ namespace Oxide.Plugins
                 if (write != null)
                 {
                     var byteCount = Encoding.UTF8.GetBytes(_chars, 0, Length, _bytes, 0);
-                    write.BytesWithSize(_bytes, byteCount);
+                    // write.BytesWithSize(_bytes.AsSpan());
+                    BytesWithSize(write, _bytes, byteCount);
                     write.Send(sendInfo);
+                }
+            }
+
+            // TODO: Remove this in favor of the ReadOnlySpan version after the July force wipe
+            private void BytesWithSize(NetWrite netWrite, byte[] bytes, int length)
+            {
+                if (length > 10485760)
+                {
+                    netWrite.WriteUInt32(0u, false);
+                    Debug.LogError("BytesWithSize: Too big " + length);
+                }
+                else
+                {
+                    netWrite.WriteUInt32((uint)length, false);
+                    netWrite.Write(bytes, 0, length);
                 }
             }
 
