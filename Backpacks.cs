@@ -7223,6 +7223,7 @@ namespace Oxide.Plugins
                 }
 
                 playerLoot.containers.Clear();
+                playerLoot.entitySource = itemContainer.entityOwner;
                 Interface.CallHook("OnLootEntity", looter, itemContainer.entityOwner);
                 playerLoot.AddContainer(itemContainer);
                 playerLoot.SendImmediate();
