@@ -1642,7 +1642,7 @@ namespace Oxide.Plugins
 
             // Start with the center (old position).
             position = new Vector3(0, BackpackContainerHeight, 0);
-            if (IsPositionInArcticBiome(position))
+            if (!IsPositionInArcticBiome(position))
                 return true;
 
             var worldSize = TerrainMeta.Size.x;
