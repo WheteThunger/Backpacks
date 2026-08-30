@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.6")]
+    [Info("Backpacks", "WhiteThunder", "3.17.7")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -5626,7 +5626,7 @@ namespace Oxide.Plugins
             private Backpack _backpack;
 
             private Action _onDirty;
-            private Func<Item, int, bool> _canAcceptItem;
+            private Func<BasePlayer, Item, int, bool> _canAcceptItem;
             private Action<Item, bool> _onItemAddedRemoved;
 
             private Backpacks _plugin => _backpack.Plugin;
@@ -5635,7 +5635,7 @@ namespace Oxide.Plugins
             public ItemContainerAdapter()
             {
                 _onDirty = () => _backpack.MarkDirty();
-                _canAcceptItem = (item, amount) =>
+                _canAcceptItem = (player, item, amount) =>
                 {
                     // Explicitly track hook time so server owners can be informed of the cost.
                     var result = _backpack.ShouldAcceptItem(item, ItemContainer);
@@ -7885,7 +7885,7 @@ namespace Oxide.Plugins
                     return null;
                 }
 
-                containerEntity.SetFlag(BaseEntity.Flags.Disabled, true);
+                containerEntity.SetFlagLocal(BaseEntity.Flags.Disabled, true);
 
                 // Fix backpack closing in building blocked zones with convar canRequireAuthIfNoLock=true (Softcore).
                 containerEntity.requireAuthIfNotLocked = false;
