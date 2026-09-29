@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.7")]
+    [Info("Backpacks", "WhiteThunder", "3.17.8")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -5627,7 +5627,7 @@ namespace Oxide.Plugins
 
             private Action _onDirty;
             private Func<BasePlayer, Item, int, bool> _canAcceptItem;
-            private Action<Item, bool> _onItemAddedRemoved;
+            private Action<Item, bool, BasePlayer> _onItemAddedRemoved;
 
             private Backpacks _plugin => _backpack.Plugin;
             private Configuration _config => _plugin._config;
@@ -5651,7 +5651,7 @@ namespace Oxide.Plugins
                     }
                     return result;
                 };
-                _onItemAddedRemoved = (item, wasAdded) =>
+                _onItemAddedRemoved = (item, wasAdded, sourcePlayer) =>
                 {
                     _backpack.HandleItemCountChanged();
                 };
@@ -6069,7 +6069,7 @@ namespace Oxide.Plugins
             private HashSet<Item> _gatherQueueSet;
 
             public GatherModeStats Stats;
-            private Action<Item, bool> _onItemAddedRemoved;
+            private Action<Item, bool, BasePlayer> _onItemAddedRemoved;
             private Item _itemBeingGathered;
             private Action _processGatherQueue;
 
@@ -6103,7 +6103,7 @@ namespace Oxide.Plugins
                 return _backpack.Plugin._backpackManager.IsBackpack(rootContainer);
             }
 
-            private void OnItemAddedRemoved(Item item, bool wasAdded)
+            private void OnItemAddedRemoved(Item item, bool wasAdded, BasePlayer sourcePlayer)
             {
                 if (!wasAdded)
                 {
