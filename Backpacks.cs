@@ -27,7 +27,7 @@ using Time = UnityEngine.Time;
 
 namespace Oxide.Plugins
 {
-    [Info("Backpacks", "WhiteThunder", "3.17.8")]
+    [Info("Backpacks", "WhiteThunder", "3.17.9")]
     [Description("Allows players to have a Backpack which provides them extra inventory space.")]
     public class Backpacks : CovalencePlugin
     {
@@ -445,7 +445,7 @@ namespace Oxide.Plugins
             NextTick(() =>
             {
                 // Verify the conversation started, since another plugin may have blocked it.
-                if (!npcTalking.conversingPlayers.Contains(player))
+                if (!npcTalking.ConversationHost.IsConversingWith(player))
                     return;
 
                 DestroyButtonUi(player);
@@ -8089,7 +8089,7 @@ namespace Oxide.Plugins
                     if (photoEntity.ImageCrc == 0)
                         return;
 
-                    var fileContent = FileStorage.server.Get(photoEntity.ImageCrc, FileStorage.Type.jpg, entity.net.ID);
+                    var fileContent = FileStorage.server.Get(entity.net.ID, 0, photoEntity.ImageCrc);
                     if (fileContent == null)
                         return;
 
@@ -8124,7 +8124,7 @@ namespace Oxide.Plugins
                         if (imageId == 0)
                             continue;
 
-                        var fileContent = FileStorage.server.Get(imageId, FileStorage.Type.png, entity.net.ID);
+                        var fileContent = FileStorage.server.Get(entity.net.ID, (ulong)i, imageId);
                         if (fileContent == null)
                             continue;
 
@@ -8140,7 +8140,7 @@ namespace Oxide.Plugins
                     if (paintedItemStorageEntity._currentImageCrc == 0)
                         return;
 
-                    var fileContent = FileStorage.server.Get(paintedItemStorageEntity._currentImageCrc, FileStorage.Type.png, entity.net.ID);
+                    var fileContent = FileStorage.server.Get(entity.net.ID, 0, paintedItemStorageEntity._currentImageCrc);
                     if (fileContent == null)
                         return;
 
@@ -8156,7 +8156,7 @@ namespace Oxide.Plugins
                     if (cassette.AudioId == 0)
                         return;
 
-                    var fileContent = FileStorage.server.Get(cassette.AudioId, FileStorage.Type.ogg, entity.net.ID);
+                    var fileContent = FileStorage.server.Get(entity.net.ID, 0, cassette.AudioId);
                     if (fileContent == null)
                         return;
 
@@ -8279,7 +8279,12 @@ namespace Oxide.Plugins
                         if (fileContent == null)
                             continue;
 
-                        signContent.GetContentCRCs[i] = FileStorage.server.Store(Convert.FromBase64String(fileContent), FileStorage.Type.png, entity.net.ID, i);
+                        var contentCrc = FileStorage.server.Store(entity.net.ID, i, FileStorage.Type.png, Convert.FromBase64String(fileContent));
+
+                        if (i == 0)
+                        {
+                            signContent.imageCrc = contentCrc;
+                        }
                     }
 
                     return;
@@ -8292,7 +8297,7 @@ namespace Oxide.Plugins
                     if (fileContent == null)
                         return;
 
-                    paintedItemStorageEntity._currentImageCrc = FileStorage.server.Store(Convert.FromBase64String(fileContent), FileStorage.Type.png, entity.net.ID);
+                    paintedItemStorageEntity._currentImageCrc = FileStorage.server.Store(entity.net.ID, 0, FileStorage.Type.png, Convert.FromBase64String(fileContent));
                     return;
                 }
 
@@ -8305,7 +8310,7 @@ namespace Oxide.Plugins
                     if (fileContent == null)
                         return;
 
-                    var audioId = FileStorage.server.Store(Convert.FromBase64String(fileContent), FileStorage.Type.ogg, entity.net.ID);
+                    var audioId = FileStorage.server.Store(entity.net.ID, 0, FileStorage.Type.ogg, Convert.FromBase64String(fileContent));
                     cassette.SetAudioId(audioId, CreatorSteamId);
                     return;
                 }
