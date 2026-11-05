@@ -8273,7 +8273,7 @@ namespace Oxide.Plugins
                     if (FileContent == null)
                         return;
 
-                    for (uint i = 0; i < FileContent.Length && i < signContent.GetContentCRCs.Length; i++)
+                    for (uint i = 0; i < FileContent.Length; i++)
                     {
                         var fileContent = FileContent[i];
                         if (fileContent == null)
